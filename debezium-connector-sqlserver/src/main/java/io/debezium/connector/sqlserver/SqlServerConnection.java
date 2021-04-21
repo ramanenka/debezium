@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -65,7 +66,9 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String SQL_SERVER_VERSION = "SELECT @@VERSION AS 'SQL Server Version'";
     private final String lsnToTimestamp;
     private static final String INCREMENT_LSN = "SELECT sys.fn_cdc_increment_lsn(?)";
-    private static final String GET_ALL_CHANGES_FOR_TABLE = "SELECT * FROM cdc.[fn_cdc_get_all_changes_#](?, ?, N'all update old') order by [__$start_lsn] ASC, [__$seqval] ASC, [__$operation] ASC";
+    private static final String GET_ALL_CHANGES_FOR_TABLE = "SELECT *# FROM cdc.[fn_cdc_get_all_changes_#](?, ?, N'all update old') order by [__$start_lsn] ASC, [__$seqval] ASC, [__$operation] ASC";
+    protected static final String LSN_TIMESTAMP_SELECT_STATEMENT = "sys.fn_cdc_map_lsn_to_time([__$start_lsn])";
+    protected static final String AT_TIME_ZONE_UTC = "AT TIME ZONE 'UTC'";
     private static final String GET_LIST_OF_CDC_ENABLED_TABLES = "EXEC sys.sp_cdc_help_change_data_capture";
     private static final String GET_LIST_OF_NEW_CDC_ENABLED_TABLES = "SELECT * FROM cdc.change_tables WHERE start_lsn BETWEEN ? AND ?";
     private static final String GET_LIST_OF_KEY_COLUMNS = "SELECT * FROM cdc.index_columns WHERE object_id=?";
@@ -88,6 +91,7 @@ public class SqlServerConnection extends JdbcConnection {
     private final SourceTimestampMode sourceTimestampMode;
     private final Clock clock;
     private final int queryFetchSize;
+    private final boolean supportsAtTimeZone;
 
     private final BoundedConcurrentHashMap<Lsn, Instant> lsnToInstantCache;
     private final SqlServerDefaultValueConverter defaultValueConverter;
@@ -118,7 +122,7 @@ public class SqlServerConnection extends JdbcConnection {
         super(config, FACTORY, classLoaderSupplier);
         lsnToInstantCache = new BoundedConcurrentHashMap<>(100);
         realDatabaseName = retrieveRealDatabaseName();
-        boolean supportsAtTimeZone = supportsAtTimeZone();
+        supportsAtTimeZone = supportsAtTimeZone();
         transactionTimezone = retrieveTransactionTimezone(supportsAtTimeZone);
         lsnToTimestamp = getLsnToTimestamp(supportsAtTimeZone);
         this.clock = clock;
@@ -205,7 +209,10 @@ public class SqlServerConnection extends JdbcConnection {
      * @throws SQLException
      */
     public void getChangesForTable(TableId tableId, Lsn fromLsn, Lsn toLsn, ResultSetConsumer consumer) throws SQLException {
-        final String query = GET_ALL_CHANGES_FOR_TABLE.replace(STATEMENTS_PLACEHOLDER, cdcNameForTable(tableId));
+        final String query = GET_ALL_CHANGES_FOR_TABLE
+                .replaceFirst(STATEMENTS_PLACEHOLDER,
+                        Matcher.quoteReplacement(sourceTimestampMode.lsnTimestampSelectStatement(supportsAtTimeZone)))
+                .replace(STATEMENTS_PLACEHOLDER, cdcNameForTable(tableId));
         prepareQuery(query, statement -> {
             statement.setBytes(1, fromLsn.getBinary());
             statement.setBytes(2, toLsn.getBinary());
@@ -228,7 +235,10 @@ public class SqlServerConnection extends JdbcConnection {
 
         int idx = 0;
         for (SqlServerChangeTable changeTable : changeTables) {
-            final String query = GET_ALL_CHANGES_FOR_TABLE.replace(STATEMENTS_PLACEHOLDER, changeTable.getCaptureInstance());
+            final String query = GET_ALL_CHANGES_FOR_TABLE
+                    .replaceFirst(STATEMENTS_PLACEHOLDER,
+                            Matcher.quoteReplacement(sourceTimestampMode.lsnTimestampSelectStatement(supportsAtTimeZone)))
+                    .replace(STATEMENTS_PLACEHOLDER, changeTable.getCaptureInstance());
             queries[idx] = query;
             // If the table was added in the middle of queried buffer we need
             // to adjust from to the first LSN available
@@ -306,7 +316,7 @@ public class SqlServerConnection extends JdbcConnection {
         }, "LSN to timestamp query must return exactly one value"));
     }
 
-    private Instant normalize(Timestamp timestamp) {
+    protected Instant normalize(Timestamp timestamp) {
         Instant instant = timestamp.toInstant();
 
         // in case the incoming timestamp was not based on UTC, shift it as per the
