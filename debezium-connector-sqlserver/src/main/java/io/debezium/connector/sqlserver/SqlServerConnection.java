@@ -57,8 +57,8 @@ public class SqlServerConnection extends JdbcConnection {
 
     private static final String STATEMENTS_PLACEHOLDER = "#";
     private static final String GET_MAX_LSN = "SELECT sys.fn_cdc_get_max_lsn()";
-
-    private static final String GET_MAX_LSN_SKIP_LOW_ACTIVTY = "SELECT (SELECT MAX(start_lsn) FROM cdc.lsn_time_mapping), (SELECT MAX(start_lsn) FROM cdc.lsn_time_mapping WHERE tran_id <> 0x00)";
+    private static final String GET_MAX_TRANSACTION_LSN = "SELECT MAX(start_lsn) FROM cdc.lsn_time_mapping WHERE tran_id <> 0x00";
+    private static final String GET_NTH_TRANSACTION_LSN = "SELECT MAX(start_lsn) FROM (SELECT TOP (?) start_lsn FROM cdc.lsn_time_mapping WHERE tran_id <> 0x00# ORDER BY start_lsn) as next_lsns";
 
     private static final String GET_MIN_LSN = "SELECT sys.fn_cdc_get_min_lsn('#')";
     private static final String LOCK_TABLE = "SELECT * FROM [#] WITH (TABLOCKX)";
@@ -146,22 +146,37 @@ public class SqlServerConnection extends JdbcConnection {
         }, "Maximum LSN query must return exactly one value"));
     }
 
-    public MaxLsnResult getMaxLsnResult(boolean skipLowActivityLsnsEnabled) throws SQLException {
-        if (skipLowActivityLsnsEnabled) {
-            return prepareQueryAndMap(GET_MAX_LSN_SKIP_LOW_ACTIVTY, statement -> {
-            }, singleResultMapper(rs -> {
-                final MaxLsnResult ret = new MaxLsnResult(Lsn.valueOf(rs.getBytes(1)), Lsn.valueOf(rs.getBytes(2)));
-                LOGGER.trace("Current maximum transactional LSN is {}", ret);
-                return ret;
-            }, "Maximum transactional LSN query must return exactly one value"));
-        }
-        Lsn maxLsn = prepareQueryAndMap(GET_MAX_LSN, statement -> {
+    /**
+     * @return the log sequence number of the most recent transaction
+     *         that isn't further than {@code maxOffset} from {@code lastLsn}.
+     */
+    public Lsn getNthTransactionLsn(Lsn lastLsn, int maxOffset) throws SQLException {
+        String replacement = lastLsn.isAvailable() ? " AND start_lsn >= ?" : "";
+        return prepareQueryAndMap(GET_NTH_TRANSACTION_LSN.replace(STATEMENTS_PLACEHOLDER, replacement), statement -> {
+            if (lastLsn.isAvailable()) {
+                // The "+1" compensates for the ">=" in the condition above.
+                statement.setInt(1, maxOffset + 1);
+                statement.setBytes(2, lastLsn.getBinary());
+            }
+            else {
+                statement.setInt(1, maxOffset);
+            }
         }, singleResultMapper(rs -> {
             final Lsn ret = Lsn.valueOf(rs.getBytes(1));
-            LOGGER.trace("Current maximum LSN is {}", ret);
+            LOGGER.trace("Nth lsn is {}", ret);
             return ret;
-        }, "Maximum LSN query must return exactly one value"));
-        return new MaxLsnResult(maxLsn, maxLsn);
+        }, "Nth LSN query must return exactly one value"));
+    }
+
+    /**
+     * @return the log sequence number of the most recent transaction.
+     */
+    public Lsn getMaxTransactionLsn() throws SQLException {
+        return queryAndMap(GET_MAX_TRANSACTION_LSN, singleResultMapper(rs -> {
+            final Lsn ret = Lsn.valueOf(rs.getBytes(1));
+            LOGGER.trace("Max transaction lsn is {}", ret);
+            return ret;
+        }, "Max transaction LSN query must return exactly one value"));
     }
 
     /**
