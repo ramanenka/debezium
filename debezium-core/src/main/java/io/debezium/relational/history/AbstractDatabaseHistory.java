@@ -131,7 +131,19 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                     }
                     try {
                         logger.debug("Applying: {}", ddl);
-                        ddlParser.parse(ddl, schema);
+
+                        try {
+                            ddlParser.parse(ddl, schema);
+                        } catch (RuntimeException parserException) {
+                            final String fixedDdl = ddl.replaceAll("\\s+", " ").trim();
+                            if (!fixedDdl.matches("(?i)^\\w+ TO \\w+$")) {
+                                throw parserException;
+                            }
+                            final String renameTableDdl = "RENAME TABLE " + fixedDdl;
+                            ddlParser.parse(renameTableDdl, schema);
+                            logger.warn("Converted unparseable ddl '{}' to '{}'", ddl, renameTableDdl);
+                        }
+
                         listener.onChangeApplied(recovered);
                     }
                     catch (final ParsingException e) {
