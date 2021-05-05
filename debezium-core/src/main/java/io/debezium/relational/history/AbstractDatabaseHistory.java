@@ -134,7 +134,8 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
 
                         try {
                             ddlParser.parse(ddl, schema);
-                        } catch (RuntimeException parserException) {
+                        }
+                        catch (RuntimeException parserException) {
                             final String fixedDdl = ddl.replaceAll("\\s+", " ").trim();
                             if (!fixedDdl.matches("(?i)^\\w+ TO \\w+$")) {
                                 throw parserException;
