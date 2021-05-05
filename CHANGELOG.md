@@ -1,5 +1,10 @@
 # Change log
 
+## 1.5.0.Final-CXP-1
+
+* Hotfix ([1](https://github.com/sugarcrm/debezium/pull/54), [2](https://github.com/sugarcrm/debezium/pull/55)) of [DBZ-3481: RENAME TABLE DDL cannot be parsed](https://issues.redhat.com/browse/DBZ-3481).
+* Hotfix ([1](https://github.com/sugarcrm/debezium/pull/48)) of [DBZ-3452: source.timestamp.mode=commit imposes a significant performance penalty](https://issues.redhat.com/browse/DBZ-3452).
+
 All notable changes are documented in this file. Release numbers follow [Semantic Versioning](http://semver.org)
 
 ## 1.5.0.Final
