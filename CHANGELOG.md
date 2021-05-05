@@ -1,5 +1,9 @@
 # Change log
 
+## 1.5.0.Final-CXP-2
+
+* Hotfix ([3](https://github.com/sugarcrm/debezium/pull/57)) of [DBZ-3481: RENAME TABLE DDL cannot be parsed](https://issues.redhat.com/browse/DBZ-3481).
+
 ## 1.5.0.Final-CXP-1
 
 * Hotfix ([1](https://github.com/sugarcrm/debezium/pull/54), [2](https://github.com/sugarcrm/debezium/pull/55)) of [DBZ-3481: RENAME TABLE DDL cannot be parsed](https://issues.redhat.com/browse/DBZ-3481).
