@@ -440,7 +440,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     /**
      * As MySQL connector/J implementation is broken for MySQL type "TIME" we have to use a binary-ish workaround
      *
-     * @see https://issues.jboss.org/browse/DBZ-342
+     * @link https://issues.jboss.org/browse/DBZ-342
      */
     private Object readTimeField(ResultSet rs, int fieldNo) throws SQLException {
         Blob b = rs.getBlob(fieldNo);
