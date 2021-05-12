@@ -130,4 +130,17 @@ public abstract class AbstractDatabaseHistoryTest {
         assertThat(recover(1033, 4)).isEqualTo(t3);
     }
 
+    @Test
+    public void testFixDropTable() {
+        assertThat(AbstractDatabaseHistory.fixDropTable("DROP TABLE IF EXISTS foo"))
+                .isEqualTo("DROP TABLE IF EXISTS foo");
+        assertThat(AbstractDatabaseHistory.fixDropTable("DROP TABLE bar /*comment */"))
+                .isEqualTo("DROP TABLE bar /*comment */");
+        assertThat(AbstractDatabaseHistory.fixDropTable("DROP TABLE IF EXISTS `foo-bar`"))
+                .isEqualTo("DROP TABLE IF EXISTS `foo-bar`");
+        assertThat(AbstractDatabaseHistory.fixDropTable("drop table foo-bar"))
+                .isEqualTo("drop table `foo-bar`");
+        assertThat(AbstractDatabaseHistory.fixDropTable("DROP TABLE baz-quz /*comment */"))
+                .isEqualTo("DROP TABLE `baz-quz` /*comment */");
+    }
 }
