@@ -70,7 +70,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
      * A separate connection for retrieving timestamps; without it, adaptive
      * buffering will not work.
      *
-     * @see https://docs.microsoft.com/en-us/sql/connect/jdbc/using-adaptive-buffering?view=sql-server-2017#guidelines-for-using-adaptive-buffering
+     * @link https://docs.microsoft.com/en-us/sql/connect/jdbc/using-adaptive-buffering?view=sql-server-2017#guidelines-for-using-adaptive-buffering
      */
     private final SqlServerConnection metadataConnection;
 
@@ -112,6 +112,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             final long lastProcessedEventSerialNoOnStart = offsetContext.getEventSerialNo();
             LOGGER.info("Last position recorded in offsets is {}[{}]", lastProcessedPositionOnStart, lastProcessedEventSerialNoOnStart);
             final AtomicBoolean changesStoppedBeingMonotonic = new AtomicBoolean(false);
+            final int maxTransactionsPerIteration = connectorConfig.getMaxTransactionsPerIteration();
 
             TxLogPosition lastProcessedPosition = lastProcessedPositionOnStart;
 
@@ -125,16 +126,24 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                 if (connectorConfig.isReadOnlyDatabaseConnection()) {
                     dataConnection.commit();
                 }
-                final MaxLsnResult maxLsnResult = dataConnection.getMaxLsnResult(connectorConfig.isSkipLowActivityLsnsEnabled());
+
+                final Lsn toLsn;
+
+                if (maxTransactionsPerIteration > 0) {
+                    toLsn = dataConnection.getNthTransactionLsn(lastProcessedPosition.getCommitLsn(), maxTransactionsPerIteration);
+                }
+                else {
+                    toLsn = dataConnection.getMaxTransactionLsn();
+                }
 
                 // Shouldn't happen if the agent is running, but it is better to guard against such situation
-                if (!maxLsnResult.getMaxLsn().isAvailable() || !maxLsnResult.getMaxTransactionalLsn().isAvailable()) {
+                if (!toLsn.isAvailable()) {
                     LOGGER.warn("No maximum LSN recorded in the database; please ensure that the SQL Server Agent is running");
                     metronome.pause();
                     continue;
                 }
                 // There is no change in the database
-                if (maxLsnResult.getMaxTransactionalLsn().compareTo(lastProcessedPosition.getCommitLsn()) <= 0 && shouldIncreaseFromLsn) {
+                if (toLsn.compareTo(lastProcessedPosition.getCommitLsn()) <= 0 && shouldIncreaseFromLsn) {
                     LOGGER.debug("No change in the database");
                     metronome.pause();
                     continue;
@@ -150,18 +159,18 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                 while (!schemaChangeCheckpoints.isEmpty()) {
                     migrateTable(schemaChangeCheckpoints);
                 }
-                if (!dataConnection.listOfNewChangeTables(fromLsn, maxLsnResult.getMaxLsn()).isEmpty()) {
+                if (!dataConnection.listOfNewChangeTables(fromLsn, toLsn).isEmpty()) {
                     final SqlServerChangeTable[] tables = getCdcTablesToQuery();
                     tablesSlot.set(tables);
                     for (SqlServerChangeTable table : tables) {
-                        if (table.getStartLsn().isBetween(fromLsn, maxLsnResult.getMaxLsn())) {
+                        if (table.getStartLsn().isBetween(fromLsn, toLsn)) {
                             LOGGER.info("Schema will be changed for {}", table);
                             schemaChangeCheckpoints.add(table);
                         }
                     }
                 }
                 try {
-                    dataConnection.getChangesForTables(tablesSlot.get(), fromLsn, maxLsnResult.getMaxLsn(), resultSets -> {
+                    dataConnection.getChangesForTables(tablesSlot.get(), fromLsn, toLsn, resultSets -> {
 
                         long eventSerialNoInInitialTx = 1;
                         final int tableCount = resultSets.length;
@@ -273,7 +282,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                             tableWithSmallestLsn.next();
                         }
                     });
-                    lastProcessedPosition = TxLogPosition.valueOf(maxLsnResult.getMaxLsn());
+                    lastProcessedPosition = TxLogPosition.valueOf(toLsn);
                     // Terminate the transaction otherwise CDC could not be disabled for tables
                     dataConnection.rollback();
                 }
