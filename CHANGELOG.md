@@ -1,8 +1,12 @@
 # Change log
 
+## 1.5.0-SNAPSHOT-98264e2b4
+
+* Hotfix ([4](https://github.com/sugarcrm/debezium/pull/59)) of [DBZ-3485: When table contain '-' ,debezium crashed](https://issues.redhat.com/browse/DBZ-3485).
+
 ## 1.5.0.Final-CXP-2
 
-* Hotfix ([3](https://github.com/sugarcrm/debezium/pull/57)) of [DBZ-3481: RENAME TABLE DDL cannot be parsed](https://issues.redhat.com/browse/DBZ-3481).
+* Hotfix ([3](https://github.com/sugarcrm/debezium/pull/57)) of [DBZ-3399: RRename table stores only a fragment of DDL in schema history](https://issues.redhat.com/browse/DBZ-3399).
 
 ## 1.5.0.Final-CXP-1
 
