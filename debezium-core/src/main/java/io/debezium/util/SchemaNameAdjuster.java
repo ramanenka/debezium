@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,15 +140,12 @@ public interface SchemaNameAdjuster {
      * with a valid fullname, and throws an error if the replacement conflicts with that of a different original. This method
      * replaces all invalid characters with the underscore character ('_').
      *
-     * @param logger the logger to use; may not be null     * @return the validator; never null
+     * @return the adjuster; never null
      */
     public static SchemaNameAdjuster create() {
-        return create((original, replacement, conflict) -> {
-            String msg = "The Kafka Connect schema name '" + original +
-                    "' is not a valid Avro schema name and its replacement '" + replacement +
-                    "' conflicts with another different schema '" + conflict + "'";
-            throw new ConnectException(msg);
-        });
+        return create((original, replacement, conflict) -> LOGGER.warn("The Kafka Connect schema name '" + original +
+                "' is not a valid Avro schema name and its replacement '" + replacement +
+                "' conflicts with another different schema '" + conflict + "'"));
     }
 
     /**
