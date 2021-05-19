@@ -889,7 +889,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 r.deliver(NumberConversions.getInteger((Boolean) data));
             }
             else if (data instanceof String) {
-                r.deliver(Integer.valueOf((String) data));
+                r.deliver(Math.round(Float.parseFloat((String) data)));
             }
         });
     }
