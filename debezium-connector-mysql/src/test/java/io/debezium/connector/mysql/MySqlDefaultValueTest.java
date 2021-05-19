@@ -504,4 +504,17 @@ public class MySqlDefaultValueTest {
         assertThat(Byte.toUnsignedInt((defVal[1]))).isEqualTo(0b11111011);
         assertThat(Byte.toUnsignedInt((defVal[2]))).isEqualTo(0b11111111);
     }
+
+    @Test
+    @FixFor("DBZ-3541")
+    public void shouldRoundIntExpressedAsDecimal() {
+        String ddl = "CREATE TABLE int_as_decimal (col1 INT DEFAULT '0.0', col2 INT DEFAULT '1.5')";
+
+        parser.parse(ddl, tables);
+
+        Table table = tables.forTable(new TableId(null, null, "int_as_decimal"));
+
+        assertThat(table.columnWithName("col1").defaultValue()).isEqualTo(0);
+        assertThat(table.columnWithName("col2").defaultValue()).isEqualTo(2);
+    }
 }
