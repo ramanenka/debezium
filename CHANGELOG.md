@@ -1,5 +1,16 @@
 # Change log
 
+## 1.5.0.Final-CXP-3
+
+* Hotfix ([7](https://github.com/sugarcrm/debezium/commit/bd75e627541b1402639b675c6913ca90525f3a72)) of [Connector crashes when table name contains '-' character](https://issues.redhat.com/browse/DBZ-3485).
+* Hotfix ([8](https://github.com/sugarcrm/debezium/commit/719d972e181a539d1d976336f0218d12c9d14668)) of [Rename table stores only a fragment of DDL in schema history](https://issues.redhat.com/browse/DBZ-3399).
+* Hotfix ([9](https://github.com/sugarcrm/debezium/commit/95dbff4210eed3d28439115f5d6e5eb24447101a)) of [Rename table stores only a fragment of DDL in schema history](https://issues.redhat.com/browse/DBZ-3399).
+* Hotfix ([10](https://github.com/sugarcrm/debezium/pull/64) of [DBZ-3399: Rename table stores only a fragment of DDL in schema history](https://issues.redhat.com/browse/DBZ-3399).
+
+## 1.5.0-SNAPSHOT-20781b1c5
+
+* Hotfix ([6](https://github.com/sugarcrm/debezium/pull/62)) of [DBZ-3535: ShemaNameAdjuster is too restrictive by default](https://issues.redhat.com/browse/DBZ-3535).
+
 ## 1.5.0-SNAPSHOT-98264e2b4
 
 * Hotfix ([4](https://github.com/sugarcrm/debezium/pull/59)) of [DBZ-3485: When table contain '-' ,debezium crashed](https://issues.redhat.com/browse/DBZ-3485).
