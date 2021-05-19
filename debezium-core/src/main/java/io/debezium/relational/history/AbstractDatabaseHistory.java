@@ -138,7 +138,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                         }
                         catch (RuntimeException parserException) {
                             final String fixedDdl = ddl.replaceAll("\\s+", " ").trim();
-                            if (fixedDdl.matches("(?i)^[\\w\\.`]+ TO [\\w\\.`]+$")) {
+                            if (fixedDdl.matches("(?i)^[\\w\\.`-]+ TO [\\w\\.`-]+$")) {
                                 final String renameTableDdl = "RENAME TABLE " + fixedDdl;
                                 logger.warn("Converted unparseable ddl '{}' to '{}'", ddl, renameTableDdl);
                                 ddlParser.parse(renameTableDdl, schema);
