@@ -548,4 +548,17 @@ public class MySqlDefaultValueTest {
         TableSchema schema = tableSchemaBuilder.create("test", "dummy", table, null, null, null);
         return schema.getEnvelopeSchema().schema().field("after").schema().field(column).schema();
     }
+
+    @Test
+    @FixFor("DBZ-3541")
+    public void shouldRoundIntExpressedAsDecimal() {
+        String ddl = "CREATE TABLE int_as_decimal (col1 INT DEFAULT '0.0', col2 INT DEFAULT '1.5')";
+
+        parser.parse(ddl, tables);
+
+        Table table = tables.forTable(new TableId(null, null, "int_as_decimal"));
+
+        assertThat(getColumnSchema(table, "col1").defaultValue()).isEqualTo(0);
+        assertThat(getColumnSchema(table, "col2").defaultValue()).isEqualTo(2);
+    }
 }
