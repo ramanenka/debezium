@@ -1,5 +1,9 @@
 # Change log
 
+## 1.5.0.Final-CXP-5
+
+* Hotfix ([13](https://github.com/sugarcrm/debezium/pull/68)) of [CXP-1145] Disconnect before schema recovery
+
 ## 1.5.0.Final-CXP-4
 
 * Hotfix ([11](https://github.com/sugarcrm/debezium/pull/66)) of [MySQL connector fails to parse default integer value expressed as decimal](https://issues.redhat.com/browse/DBZ-3541)
