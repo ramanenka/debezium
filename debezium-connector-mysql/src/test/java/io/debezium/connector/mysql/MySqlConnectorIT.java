@@ -556,28 +556,6 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         Testing.print("*** Done with schema change (same db and fully-qualified name)");
 
         // ---------------------------------------------------------------------------------------------------------------
-        // DBZ-55 Change our schema using a different database and a fully-qualified name; we should still see this event
-        // ---------------------------------------------------------------------------------------------------------------
-        // Connect to a different database, but use the fully qualified name for a table in our database ...
-        try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase("emptydb");) {
-            try (JdbcConnection connection = db.connect()) {
-                connection.execute(String.format("CREATE TABLE %s.stores ("
-                        + " id INT(11) PRIMARY KEY NOT NULL AUTO_INCREMENT,"
-                        + " first_name VARCHAR(255) NOT NULL,"
-                        + " last_name VARCHAR(255) NOT NULL,"
-                        + " email VARCHAR(255) NOT NULL );", DATABASE.getDatabaseName()));
-            }
-        }
-
-        // And consume the one schema change event only ...
-        records = consumeRecordsByTopic(1);
-        assertThat(records.topics().size()).isEqualTo(1);
-        assertThat(records.recordsForTopic(DATABASE.getServerName()).size()).isEqualTo(1);
-        records.recordsForTopic(DATABASE.getServerName()).forEach(this::validate);
-
-        Testing.print("*** Done with PK change (different db and fully-qualified name)");
-
-        // ---------------------------------------------------------------------------------------------------------------
         // Make sure there are no additional events
         // ---------------------------------------------------------------------------------------------------------------
 

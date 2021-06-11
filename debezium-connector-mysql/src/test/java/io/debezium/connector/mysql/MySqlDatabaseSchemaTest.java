@@ -93,7 +93,7 @@ public class MySqlDatabaseSchemaTest {
         offset.setBinlogStartPoint("binlog-001", 400);
         mysql.parseStreamingDdl("SET " + MySqlSystemVariables.CHARSET_NAME_SERVER + "=utf8mb4", null, offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
-        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "db1", offset,
+        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "connector_test", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
 
         // Check that we have tables ...
@@ -120,7 +120,7 @@ public class MySqlDatabaseSchemaTest {
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
         mysql.parseStreamingDdl("xxxCREATE TABLE mytable\n" + IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "db1", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
-        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "db1", offset,
+        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "connector_test", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
 
         // Check that we have tables ...
@@ -144,7 +144,7 @@ public class MySqlDatabaseSchemaTest {
         offset.setBinlogStartPoint("binlog-001", 400);
         mysql.parseStreamingDdl("SET " + MySqlSystemVariables.CHARSET_NAME_SERVER + "=utf8mb4", null, offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
-        mysql.parseStreamingDdl("xxxCREATE TABLE mytable\n" + IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "db1", offset,
+        mysql.parseStreamingDdl("xxxCREATE TABLE mytable\n" + IoUtil.readClassPathResource("ddl/mysql-products.ddl"), "connector_test", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
     }
 
@@ -223,7 +223,7 @@ public class MySqlDatabaseSchemaTest {
 
         // Set up the server ...
         offset.setBinlogStartPoint("binlog-001", 400);
-        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-decimal-issue.ddl"), "db1", offset,
+        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-decimal-issue.ddl"), "connector_test", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
 
         assertTableIncluded("connector_test.business_order");
@@ -245,7 +245,7 @@ public class MySqlDatabaseSchemaTest {
 
         // Set up the server ...
         offset.setBinlogStartPoint("binlog-001", 400);
-        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "db1", offset,
+        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "captured", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
 
         assertTableIncluded("captured.ct");
@@ -276,7 +276,7 @@ public class MySqlDatabaseSchemaTest {
 
         // Set up the server ...
         offset.setBinlogStartPoint("binlog-001", 400);
-        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "db1", offset,
+        mysql.parseStreamingDdl(IoUtil.readClassPathResource("ddl/mysql-schema-captured.ddl"), "captured", offset,
                 Instant.now()).forEach(x -> mysql.applySchemaChange(x));
 
         assertTableIncluded("captured.ct");

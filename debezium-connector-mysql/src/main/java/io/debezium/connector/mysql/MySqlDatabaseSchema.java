@@ -207,6 +207,10 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
             return schemaChangeEvents;
         }
 
+        if (!"".equals(databaseName) && !filters.databaseFilter().test(databaseName)) {
+            return schemaChangeEvents;
+        }
+
         try {
             this.ddlChanges.reset();
             this.ddlParser.setCurrentSchema(databaseName);
