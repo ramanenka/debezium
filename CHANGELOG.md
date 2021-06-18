@@ -1,5 +1,9 @@
 # Change log
 
+## 1.5.2.Final-CXP-2
+
+* Hotfix ([14](https://github.com/sugarcrm/debezium/pull/74)) of [DBZ-3622: Schema change events of excluded databases are discarded](https://issues.redhat.com/browse/DBZ-3622)
+
 ## 1.5.0.Final-CXP-5
 
 * Hotfix ([13](https://github.com/sugarcrm/debezium/pull/68)) of [CXP-1145] Disconnect before schema recovery
