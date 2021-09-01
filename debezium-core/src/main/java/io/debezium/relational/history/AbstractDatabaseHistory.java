@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -134,30 +133,7 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
                     }
                     try {
                         logger.debug("Applying: {}", ddl);
-
-                        try {
-                            ddlParser.parse(ddl, schema);
-                        }
-                        catch (RuntimeException parserException) {
-                            final String fixedDdl = ddl.replaceAll("\\s+", " ").trim();
-                            if (fixedDdl.matches("(?i)^[\\w\\.`-]+ TO [\\w\\.`-]+$")) {
-                                final String renameTableDdl = "RENAME TABLE " + fixedDdl;
-                                logger.warn("Converted unparseable ddl '{}' to '{}'", ddl, renameTableDdl);
-                                ddlParser.parse(renameTableDdl, schema);
-                            }
-                            else {
-                                final String dropTableDdl = fixDropTable(ddl);
-
-                                if (!dropTableDdl.equals(ddl)) {
-                                    logger.warn("Converted unparseable ddl '{}' to '{}'", ddl, dropTableDdl);
-                                    ddlParser.parse(dropTableDdl, schema);
-                                }
-                                else {
-                                    throw parserException;
-                                }
-                            }
-                        }
-
+                        ddlParser.parse(ddl, schema);
                         listener.onChangeApplied(recovered);
                     }
                     catch (final ParsingException | MultipleParsingExceptions e) {
@@ -198,18 +174,5 @@ public abstract class AbstractDatabaseHistory implements DatabaseHistory {
     @Override
     public boolean skipUnparseableDdlStatements() {
         return skipUnparseableDDL;
-    }
-
-    public static String fixDropTable(String sql) {
-        final Pattern DROP_TABLE_PATTERN = Pattern.compile("(DROP TABLE( IF EXISTS)? )(?!(`.*`|[A-Za-z0-9_]+)(\\s|$))(\\S*)(.*)",
-                Pattern.CASE_INSENSITIVE);
-
-        Matcher matcher = DROP_TABLE_PATTERN.matcher(sql);
-
-        if (!matcher.matches()) {
-            return sql;
-        }
-
-        return matcher.group(1) + "`" + matcher.group(5) + "`" + matcher.group(6);
     }
 }
