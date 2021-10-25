@@ -60,6 +60,7 @@ public class SpecialCharsInNamesIT extends AbstractConnectorTest {
                 "INSERT INTO [UAT WAG CZ$Fixed Asset] VALUES(1, 'asset')",
                 "INSERT INTO [UAT WAG CZ$Fixed Prop] VALUES(1, 'prop')");
         TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Asset");
+        TestHelper.enableTableCdc(connection, "UAT WAG CZ$Fixed Prop");
         TestHelper.enableTableCdc(connection, "person");
 
         start(SqlServerConnector.class, config);

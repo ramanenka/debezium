@@ -221,6 +221,13 @@ public class SqlServerSnapshotChangeEventSource extends RelationalSnapshotChange
                             cdcEnabledPkColumns, sourceTable.defaultCharsetName());
                 }
             });
+
+            // Exclude the tables that don't have CDC enabled from the snapshot
+            snapshotContext.tables.tableIds().forEach((tableId -> {
+                if (!changeTables.containsKey(tableId)) {
+                    snapshotContext.capturedTables.remove(tableId);
+                }
+            }));
         }
 
         changeTablesByPartition.put(snapshotContext.partition, changeTables);

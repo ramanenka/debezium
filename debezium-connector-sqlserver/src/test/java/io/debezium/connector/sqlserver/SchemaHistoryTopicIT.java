@@ -92,18 +92,17 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
 
         Testing.Print.enable();
 
-        // DDL for 3 tables
-        SourceRecords records = consumeRecordsByTopic(3);
+        // DDL for 2 tables (the third is not CDC-enabled)
+        SourceRecords records = consumeRecordsByTopic(2);
         final List<SourceRecord> schemaRecords = records.allRecordsInOrder();
-        Assertions.assertThat(schemaRecords).hasSize(3);
+        Assertions.assertThat(schemaRecords).hasSize(2);
         schemaRecords.forEach(record -> {
             Assertions.assertThat(record.topic()).isEqualTo("server1");
             Assertions.assertThat(((Struct) record.key()).getString("databaseName")).isEqualTo("testDB");
             Assertions.assertThat(record.sourceOffset().get("snapshot")).isEqualTo(true);
         });
         Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
-        Assertions.assertThat(((Struct) schemaRecords.get(1).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
-        Assertions.assertThat(((Struct) schemaRecords.get(2).value()).getStruct("source").getString("snapshot")).isEqualTo("last");
+        Assertions.assertThat(((Struct) schemaRecords.get(1).value()).getStruct("source").getString("snapshot")).isEqualTo("last");
 
         List<Struct> tableChanges = ((Struct) schemaRecords.get(0).value()).getArray("tableChanges");
         Assertions.assertThat(tableChanges).hasSize(1);
@@ -224,10 +223,10 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
 
         // Testing.Print.enable();
 
-        // DDL for 3 tables
-        SourceRecords records = consumeRecordsByTopic(3);
+        // DDL for 2 tables (the third is not CDC-enabled) + inserts for 2 tables
+        SourceRecords records = consumeRecordsByTopic(2);
         final List<SourceRecord> schemaRecords = records.allRecordsInOrder();
-        Assertions.assertThat(schemaRecords).hasSize(3);
+        Assertions.assertThat(schemaRecords).hasSize(2);
         schemaRecords.forEach(record -> {
             Assertions.assertThat(record.topic()).isEqualTo("server1");
             Assertions.assertThat(((Struct) record.key()).getString("databaseName")).isEqualTo("testDB");
@@ -235,7 +234,6 @@ public class SchemaHistoryTopicIT extends AbstractConnectorTest {
         });
         Assertions.assertThat(((Struct) schemaRecords.get(0).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
         Assertions.assertThat(((Struct) schemaRecords.get(1).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
-        Assertions.assertThat(((Struct) schemaRecords.get(2).value()).getStruct("source").getString("snapshot")).isEqualTo("true");
 
         final List<Struct> tableChanges = ((Struct) schemaRecords.get(0).value()).getArray("tableChanges");
         Assertions.assertThat(tableChanges).hasSize(1);
