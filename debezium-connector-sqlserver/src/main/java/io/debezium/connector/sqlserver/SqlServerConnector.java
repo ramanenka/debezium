@@ -73,6 +73,10 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
                                                        int maxTasks) {
         final boolean multiPartitionMode = config.isMultiPartitionModeEnabled();
         List<String> databaseNames = config.getDatabaseNames();
+        final List<String> realDatabaseNames = connection.retrieveRealOnlineDatabaseNames(databaseNames);
+        if (realDatabaseNames.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
 
         // Initialize the database list for each task
         List<List<String>> databasesByTask = new ArrayList<>();
@@ -81,10 +85,9 @@ public class SqlServerConnector extends RelationalBaseSourceConnector {
         }
 
         // Add each database to a task list via round-robin.
-        for (int databaseNameIndex = 0; databaseNameIndex < databaseNames.size(); databaseNameIndex++) {
+        for (int databaseNameIndex = 0; databaseNameIndex < realDatabaseNames.size(); databaseNameIndex++) {
             int taskIndex = databaseNameIndex % maxTasks;
-            String realDatabaseName = connection.retrieveRealDatabaseName(databaseNames.get(databaseNameIndex));
-            databasesByTask.get(taskIndex).add(realDatabaseName);
+            databasesByTask.get(taskIndex).add(realDatabaseNames.get(databaseNameIndex));
         }
 
         // Create a task config for each task, assigning each a list of database names.
