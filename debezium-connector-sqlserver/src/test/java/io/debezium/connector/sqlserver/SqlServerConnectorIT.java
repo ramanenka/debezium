@@ -2816,6 +2816,38 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         stopConnector();
     }
 
+    @Test
+    public void shouldIgnoreOfflineAndNonExistingDatabases() throws Exception {
+        TestHelper.createTestDatabases(TestHelper.TEST_DATABASE_1, TestHelper.TEST_DATABASE_2);
+        final Map<String, String> props = TestHelper.defaultConnectorConfig()
+                .with(SqlServerConnectorConfig.DATABASE_NAMES.name(), TestHelper.TEST_DATABASE_1 + ","
+                        + TestHelper.TEST_DATABASE_2 + ",non-existing-database")
+                .build()
+                .asMap();
+        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerConnection.class);
+
+        connection.execute("ALTER DATABASE " + TestHelper.TEST_DATABASE_2 + " SET OFFLINE");
+
+        try {
+            SqlServerConnector connector = new SqlServerConnector();
+            connector.start(props);
+            List<Map<String, String>> taskConfigs = connector.taskConfigs(1);
+            assertThat(taskConfigs).hasSize(1);
+            assertThat(taskConfigs.get(0).get(SqlServerConnectorConfig.DATABASE_NAMES.name())).isEqualTo(TestHelper.TEST_DATABASE_1);
+
+            final String message1 = "Database non-existing-database does not exist";
+            assertThat(logInterceptor.containsMessage(message1)).isTrue();
+
+            final String message2 = "Database " + TestHelper.TEST_DATABASE_2 + " is not online (state_desc = OFFLINE)";
+            assertThat(logInterceptor.containsMessage(message2)).isTrue();
+        }
+        finally {
+            // Set the database back online, since otherwise, it will be impossible to create it again
+            // https://docs.microsoft.com/en-us/sql/t-sql/statements/drop-database-transact-sql?view=sql-server-ver15#general-remarks
+            connection.execute("ALTER DATABASE " + TestHelper.TEST_DATABASE_2 + " SET ONLINE");
+        }
+    }
+
     private void assertRecord(Struct record, List<SchemaAndValueField> expected) {
         expected.forEach(schemaAndValueField -> schemaAndValueField.assertFor(record));
     }
