@@ -2900,6 +2900,15 @@ public class MySqlAntlrDdlParserTest {
         assertThat(table.columnWithName("ts_col").defaultValue()).isEqualTo(toIsoString("2020-01-02 03:04:05"));
     }
 
+    @Test
+    public void shouldIgnoreColumnLengthOver32Bits() {
+        parser.parse("CREATE TABLE table1(id INT);", tables);
+        parser.parse("ALTER TABLE table1 add COLUMN text1 text(4294967295)  NULL", tables);
+
+        Table table = tables.forTable(new TableId(null, null, "table1"));
+        assertThat(table.columnWithName("text1").length()).isEqualTo(Column.UNSET_INT_VALUE);
+    }
+
     private String toIsoString(String timestamp) {
         return ZonedTimestamp.toIsoString(Timestamp.valueOf(timestamp).toInstant().atZone(ZoneId.systemDefault()), null);
     }

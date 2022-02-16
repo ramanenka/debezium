@@ -151,8 +151,13 @@ public class ColumnDefinitionParserListener extends MySqlParserBaseListener {
             MySqlParser.StringDataTypeContext stringDataTypeContext = (MySqlParser.StringDataTypeContext) dataTypeContext;
 
             if (stringDataTypeContext.lengthOneDimension() != null) {
-                Integer length = Integer.valueOf(stringDataTypeContext.lengthOneDimension().decimalLiteral().getText());
-                columnEditor.length(length);
+                try {
+                    Integer length = Integer.valueOf(stringDataTypeContext.lengthOneDimension().decimalLiteral().getText());
+                    columnEditor.length(length);
+                }
+                catch (NumberFormatException e) {
+                    // ignore lengths that don't fit into 32 bits
+                }
             }
 
             charsetName = parser.extractCharset(stringDataTypeContext.charsetName(), stringDataTypeContext.collationName());
