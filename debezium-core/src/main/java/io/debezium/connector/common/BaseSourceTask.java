@@ -9,6 +9,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,11 +76,11 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     private ChangeEventSourceCoordinator<P, O> coordinator;
 
     /**
-     * The latest offset that has been acknowledged by the Kafka producer. Will be
+     * The latest offsets that have been acknowledged by the Kafka producer. Will be
      * acknowledged with the source database in {@link BaseSourceTask#commit()}
      * (which may be a no-op depending on the connector).
      */
-    private volatile Map<String, ?> lastOffset;
+    private final Map<Map<String, ?>, Map<String, ?>> lastOffsets = new HashMap<>();
 
     private Duration retriableRestartWait;
 
@@ -175,16 +177,22 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
         if (batchSize > 0) {
             SourceRecord lastRecord = records.get(batchSize - 1);
-            lastOffset = lastRecord.sourceOffset();
+            updateLastOffset(lastRecord.sourcePartition(), lastRecord.sourceOffset());
             if (pollOutputDelay.hasElapsed()) {
                 // We want to record the status ...
                 final Instant currentTime = clock.currentTime();
                 LOGGER.info("{} records sent during previous {}, last recorded offset: {}", batchSize,
-                        Strings.duration(Duration.between(previousOutputInstant, currentTime).toMillis()), lastOffset);
+                        Strings.duration(Duration.between(previousOutputInstant, currentTime).toMillis()), lastRecord.sourceOffset());
 
                 previousOutputInstant = currentTime;
             }
         }
+    }
+
+    private void updateLastOffset(Map<String, ?> partition, Map<String, ?> lastOffset) {
+        stateLock.lock();
+        lastOffsets.put(partition, lastOffset);
+        stateLock.unlock();
     }
 
     /**
@@ -267,7 +275,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     public void commitRecord(SourceRecord record) throws InterruptedException {
         Map<String, ?> currentOffset = record.sourceOffset();
         if (currentOffset != null) {
-            this.lastOffset = currentOffset;
+            updateLastOffset(record.sourcePartition(), currentOffset);
         }
     }
 
@@ -277,8 +285,22 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
 
         if (locked) {
             try {
-                if (coordinator != null && lastOffset != null) {
-                    coordinator.commitOffset(lastOffset);
+                if (coordinator != null) {
+                    Iterator<Map.Entry<Map<String, ?>, Map<String, ?>>> iterator = lastOffsets.entrySet().iterator();
+                    while (iterator.hasNext()) {
+                        Map.Entry<Map<String, ?>, Map<String, ?>> entry = iterator.next();
+                        Map<String, ?> partition = entry.getKey();
+                        Map<String, ?> lastOffset = entry.getValue();
+
+                        try {
+                            coordinator.commitOffset(partition, lastOffset);
+                            iterator.remove();
+                        }
+                        catch (RuntimeException e) {
+                            LOGGER.error("Couldn't commit processed log position " + lastOffset + " of partition "
+                                    + partition + " with the source database", e);
+                        }
+                    }
                 }
             }
             finally {
