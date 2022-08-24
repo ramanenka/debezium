@@ -6,11 +6,13 @@ on:
       - main
       - 1.*
       - 2.*
+      - database-callbacks
   pull_request:
     branches:
       - main
       - 1.*
       - 2.*
+      - database-callbacks
 
 env:
   MAVEN_FULL_BUILD_PROJECTS: "\\!debezium-microbenchmark-oracle"
