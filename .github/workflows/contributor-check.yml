@@ -8,6 +8,7 @@ on:
       - main
       - 1.*
       - 2.*
+      - database-callbacks
     types: [ opened ]
 jobs:
   build:
