@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -478,31 +479,38 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     }
 
     @Override
-    public void commitOffset(Map<String, ?> offset) {
+    public void commitOffset(Map<String, ?> partition, Map<String, ?> offset) {
         Lsn commitLsn = Lsn.valueOf((String) offset.get("commit_lsn"));
         synchronized (streamingExecutionContexts) {
-            for (Map.Entry<SqlServerPartition, SqlServerStreamingExecutionContext> entry : streamingExecutionContexts.entrySet()) {
-                SqlServerPartition partition = entry.getKey();
-                List<SqlServerChangeTable> changeTablesWithKnownStopLsn = entry.getValue().getChangeTablesWithKnownStopLsn();
+            Optional<Map.Entry<SqlServerPartition, SqlServerStreamingExecutionContext>> context = streamingExecutionContexts.entrySet().stream()
+                    .filter(entry -> entry.getKey().getSourcePartition().equals(partition))
+                    .findFirst();
 
-                synchronized (changeTablesWithKnownStopLsn) {
-                    List<SqlServerChangeTable> changeTablesToBeDeleted = changeTablesWithKnownStopLsn.stream()
-                            .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
-                            .collect(Collectors.toList());
+            if (!context.isPresent()) {
+                return;
+            }
 
-                    for (SqlServerChangeTable table : changeTablesToBeDeleted) {
-                        try {
-                            dataConnection.deleteChangeTable(partition.getDatabaseName(), table);
-                        }
-                        catch (SQLException e) {
-                            throw new RuntimeException(e);
-                        }
-                        LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
+            SqlServerPartition partitionObject = context.get().getKey();
+            List<SqlServerChangeTable> changeTablesWithKnownStopLsn = context.get().getValue().getChangeTablesWithKnownStopLsn();
 
-                    }
+            synchronized (changeTablesWithKnownStopLsn) {
+                List<SqlServerChangeTable> changeTablesToBeDeleted = changeTablesWithKnownStopLsn.stream()
+                        .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
+                        .collect(Collectors.toList());
 
-                    changeTablesWithKnownStopLsn.removeAll(changeTablesToBeDeleted);
+                for (SqlServerChangeTable table : changeTablesToBeDeleted) {
+
+                    // TODO: uncomment in CXP-2156
+                    // try {
+                    // dataConnection.deleteChangeTable(partitionObject.getDatabaseName(), table);
+                    // }
+                    // catch (SQLException e) {
+                    // throw new RuntimeException(e);
+                    // }
+                    LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
                 }
+
+                changeTablesWithKnownStopLsn.removeAll(changeTablesToBeDeleted);
             }
         }
     }
