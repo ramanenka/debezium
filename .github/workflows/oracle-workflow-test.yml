@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 1.*
+      - database-callbacks
     paths:
       - 'support/checkstyle/**'
       - 'debezium-api/**'
