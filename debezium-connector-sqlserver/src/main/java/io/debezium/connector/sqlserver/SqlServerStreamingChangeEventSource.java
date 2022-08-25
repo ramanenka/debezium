@@ -460,6 +460,10 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
     @Override
     public void commitOffset(Map<String, ?> partition, Map<String, ?> offset) {
+        if (!connectorConfig.getOptionDatabaseCallbacks()) {
+            return;
+        }
+
         Lsn commitLsn = Lsn.valueOf((String) offset.get("commit_lsn"));
         synchronized (streamingExecutionContexts) {
             Optional<Map.Entry<SqlServerPartition, SqlServerStreamingExecutionContext>> context = streamingExecutionContexts.entrySet().stream()
@@ -479,14 +483,12 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         .collect(Collectors.toList());
 
                 for (SqlServerChangeTable table : changeTablesToBeDeleted) {
-
-                    // TODO: uncomment in CXP-2156
-                    // try {
-                    // dataConnection.deleteChangeTable(partitionObject.getDatabaseName(), table);
-                    // }
-                    // catch (SQLException e) {
-                    // throw new RuntimeException(e);
-                    // }
+                    try {
+                        dataConnection.deleteChangeTable(partitionObject.getDatabaseName(), table);
+                    }
+                    catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
                     LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
                 }
 
