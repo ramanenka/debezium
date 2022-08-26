@@ -5,9 +5,6 @@
  */
 package io.debezium.connector.sqlserver;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,7 +22,6 @@ public class SqlServerStreamingExecutionContext {
     private TxLogPosition lastProcessedPosition;
     private final AtomicBoolean changesStoppedBeingMonotonic;
     private boolean shouldIncreaseFromLsn;
-    private final List<SqlServerChangeTable> changeTablesWithKnownStopLsn = Collections.synchronizedList(new LinkedList<>());
 
     public SqlServerStreamingExecutionContext(PriorityQueue<SqlServerChangeTable> schemaChangeCheckpoints, AtomicReference<SqlServerChangeTable[]> tablesSlot,
                                               TxLogPosition changePosition, AtomicBoolean changesStoppedBeingMonotonic, boolean snapshotCompleted) {
@@ -62,9 +58,5 @@ public class SqlServerStreamingExecutionContext {
 
     public boolean getShouldIncreaseFromLsn() {
         return shouldIncreaseFromLsn;
-    }
-
-    public List<SqlServerChangeTable> getChangeTablesWithKnownStopLsn() {
-        return changeTablesWithKnownStopLsn;
     }
 }
