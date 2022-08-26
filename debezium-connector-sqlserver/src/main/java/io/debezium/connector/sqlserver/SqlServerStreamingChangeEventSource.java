@@ -11,8 +11,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -89,6 +89,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
     private final ElapsedTimeStrategy pauseBetweenCommits;
     private final Map<SqlServerPartition, SqlServerStreamingExecutionContext> streamingExecutionContexts;
+    private final Map<SqlServerPartition, List<SqlServerChangeTable>> changeTablesWithKnownStopLsn = new HashMap<>();
 
     private boolean checkAgent;
 
@@ -110,7 +111,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         ? DEFAULT_INTERVAL_BETWEEN_COMMITS.toMillis()
                         : intervalBetweenCommitsBasedOnPoll.toMillis());
         this.pauseBetweenCommits.hasElapsed();
-        this.streamingExecutionContexts = Collections.synchronizedMap(new HashMap<>());
+        this.streamingExecutionContexts = new HashMap<>();
         this.checkAgent = true;
     }
 
@@ -150,7 +151,6 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             final TxLogPosition lastProcessedPositionOnStart = offsetContext.getChangePosition();
             final long lastProcessedEventSerialNoOnStart = offsetContext.getEventSerialNo();
             final AtomicBoolean changesStoppedBeingMonotonic = streamingExecutionContext.getChangesStoppedBeingMonotonic();
-            final List<SqlServerChangeTable> changeTablesWithKnownStopLsn = streamingExecutionContext.getChangeTablesWithKnownStopLsn();
             final int maxTransactionsPerIteration = connectorConfig.getMaxTransactionsPerIteration();
 
             TxLogPosition lastProcessedPosition = streamingExecutionContext.getLastProcessedPosition();
@@ -207,15 +207,11 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         }
                     }
 
-                    for (SqlServerChangeTable table : tables) {
-                        if (table.getStopLsn().isAvailable()) {
-                            LOGGER.info("The stop lsn of {} change table became known", table);
-                            changeTablesWithKnownStopLsn.add(table);
-                        }
-                    }
+                    collectChangeTablesWithKnownStopLsn(partition, tables);
                 }
                 if (tablesSlot.get() == null) {
                     tablesSlot.set(getChangeTablesToQuery(partition, offsetContext, toLsn));
+                    collectChangeTablesWithKnownStopLsn(partition, tablesSlot.get());
                 }
                 try {
                     dataConnection.getChangesForTables(databaseName, tablesSlot.get(), fromLsn, toLsn, resultSets -> {
@@ -344,6 +340,25 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
         }
 
         return true;
+    }
+
+    private void collectChangeTablesWithKnownStopLsn(SqlServerPartition partition, SqlServerChangeTable[] tables) {
+        if (!connectorConfig.getOptionDatabaseCallbacks()) {
+            return;
+        }
+
+        for (SqlServerChangeTable table : tables) {
+            if (table.getStopLsn().isAvailable()) {
+                synchronized (changeTablesWithKnownStopLsn) {
+                    if (!changeTablesWithKnownStopLsn.containsKey(partition)) {
+                        changeTablesWithKnownStopLsn.put(partition, new LinkedList<>());
+                    }
+
+                    LOGGER.info("The stop lsn of {} change table became known", table);
+                    changeTablesWithKnownStopLsn.get(partition).add(table);
+                }
+            }
+        }
     }
 
     private void commitTransaction() throws SQLException {
@@ -479,41 +494,39 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     }
 
     @Override
-    public void commitOffset(Map<String, ?> partition, Map<String, ?> offset) {
+    public void commitOffset(Map<String, ?> sourcePartition, Map<String, ?> offset) {
         if (!connectorConfig.getOptionDatabaseCallbacks()) {
             return;
         }
 
         Lsn commitLsn = Lsn.valueOf((String) offset.get("commit_lsn"));
-        synchronized (streamingExecutionContexts) {
-            Optional<Map.Entry<SqlServerPartition, SqlServerStreamingExecutionContext>> context = streamingExecutionContexts.entrySet().stream()
-                    .filter(entry -> entry.getKey().getSourcePartition().equals(partition))
+        synchronized (changeTablesWithKnownStopLsn) {
+            Optional<SqlServerPartition> optionalPartition = changeTablesWithKnownStopLsn.keySet().stream()
+                    .filter(p -> p.getSourcePartition().equals(sourcePartition))
                     .findFirst();
 
-            if (!context.isPresent()) {
+            if (!optionalPartition.isPresent()) {
                 return;
             }
 
-            SqlServerPartition partitionObject = context.get().getKey();
-            List<SqlServerChangeTable> changeTablesWithKnownStopLsn = context.get().getValue().getChangeTablesWithKnownStopLsn();
+            SqlServerPartition partition = optionalPartition.get();
+            List<SqlServerChangeTable> partitionTables = changeTablesWithKnownStopLsn.get(partition);
 
-            synchronized (changeTablesWithKnownStopLsn) {
-                List<SqlServerChangeTable> changeTablesToBeDeleted = changeTablesWithKnownStopLsn.stream()
-                        .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
-                        .collect(Collectors.toList());
+            List<SqlServerChangeTable> changeTablesToBeDeleted = partitionTables.stream()
+                    .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
+                    .collect(Collectors.toList());
 
-                for (SqlServerChangeTable table : changeTablesToBeDeleted) {
-                    try {
-                        dataConnection.deleteChangeTable(partitionObject.getDatabaseName(), table);
-                    }
-                    catch (SQLException e) {
-                        throw new RuntimeException(e);
-                    }
-                    LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
+            for (SqlServerChangeTable table : changeTablesToBeDeleted) {
+                try {
+                    dataConnection.deleteChangeTable(partition.getDatabaseName(), table);
                 }
-
-                changeTablesWithKnownStopLsn.removeAll(changeTablesToBeDeleted);
+                catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
             }
+
+            partitionTables.removeAll(changeTablesToBeDeleted);
         }
     }
 }
