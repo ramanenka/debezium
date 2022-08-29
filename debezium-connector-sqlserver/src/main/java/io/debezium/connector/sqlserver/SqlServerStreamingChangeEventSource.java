@@ -11,12 +11,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -88,7 +89,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
     private final ElapsedTimeStrategy pauseBetweenCommits;
     private final Map<SqlServerPartition, SqlServerStreamingExecutionContext> streamingExecutionContexts;
-    private final Map<SqlServerPartition, List<SqlServerChangeTable>> changeTablesWithKnownStopLsn = new HashMap<>();
+    private final Map<SqlServerPartition, Set<SqlServerChangeTable>> changeTablesWithKnownStopLsn = new HashMap<>();
 
     public SqlServerStreamingChangeEventSource(SqlServerConnectorConfig connectorConfig, SqlServerConnection dataConnection,
                                                SqlServerConnection metadataConnection,
@@ -331,7 +332,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             if (table.getStopLsn().isAvailable()) {
                 synchronized (changeTablesWithKnownStopLsn) {
                     if (!changeTablesWithKnownStopLsn.containsKey(partition)) {
-                        changeTablesWithKnownStopLsn.put(partition, new LinkedList<>());
+                        changeTablesWithKnownStopLsn.put(partition, new HashSet<>());
                     }
 
                     LOGGER.info("The stop lsn of {} change table became known", table);
@@ -490,7 +491,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             }
 
             SqlServerPartition partition = optionalPartition.get();
-            List<SqlServerChangeTable> partitionTables = changeTablesWithKnownStopLsn.get(partition);
+            Set<SqlServerChangeTable> partitionTables = changeTablesWithKnownStopLsn.get(partition);
 
             List<SqlServerChangeTable> changeTablesToBeDeleted = partitionTables.stream()
                     .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
