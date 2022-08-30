@@ -503,10 +503,9 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                 catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
+                partitionTables.remove(table);
                 LOGGER.info("Deleted change table {} as the committed change lsn ({}) is greater than the table's stop lsn", table, offset);
             }
-
-            partitionTables.removeAll(changeTablesToBeDeleted);
         }
     }
 }
