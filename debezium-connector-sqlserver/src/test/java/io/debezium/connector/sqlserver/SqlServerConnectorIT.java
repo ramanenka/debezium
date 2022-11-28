@@ -14,7 +14,6 @@ import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_EX
 import static io.debezium.relational.RelationalDatabaseConnectorConfig.SCHEMA_INCLUDE_LIST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
@@ -909,54 +908,6 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         assertThat(tableB).hasSize(RECORDS_PER_TABLE);
 
         stopConnector();
-    }
-
-    @Test
-    @FixFor("DBZ-4346")
-    public void shouldReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialMode() throws Exception {
-        // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
-                + "DROP LOGIN test_user\n"
-                + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
-                + "CREATE USER test_user FOR LOGIN test_user\n"
-                + "ALTER ROLE db_denydatareader ADD MEMBER test_user";
-
-        connection.execute(testUserCreateSql);
-
-        final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "^dbo.tableb$")
-                .with(SqlServerConnectorConfig.USER, "test_user")
-                .build();
-
-        SqlServerConnector connector = new SqlServerConnector();
-        Config validatedConfig = connector.validate(config.asMap());
-
-        assertConfigurationErrors(validatedConfig, SqlServerConnectorConfig.USER, 1);
-    }
-
-    @Test
-    @FixFor("DBZ-4346")
-    public void shouldNotReportConfigurationErrorForUserNotHavingAccessToCDCTableInInitialOnlyMode() throws Exception {
-        // First create a new user with only db_datareader role
-        String testUserCreateSql = "IF EXISTS (select 1 from sys.server_principals where name = 'test_user')\n"
-                + "DROP LOGIN test_user\n"
-                + "CREATE LOGIN test_user WITH PASSWORD = 'Password!'\n"
-                + "CREATE USER test_user FOR LOGIN test_user\n"
-                + "ALTER ROLE db_denydatareader ADD MEMBER test_user";
-
-        connection.execute(testUserCreateSql);
-
-        final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
-                .with(SqlServerConnectorConfig.TABLE_INCLUDE_LIST, "^dbo.tableb$")
-                .with(SqlServerConnectorConfig.USER, "test_user")
-                .build();
-
-        SqlServerConnector connector = new SqlServerConnector();
-        Config validatedConfig = connector.validate(config.asMap());
-
-        assertNoConfigurationErrors(validatedConfig, SqlServerConnectorConfig.USER);
     }
 
     @Test
@@ -2622,24 +2573,6 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
-    public void shouldFailWhenUserDoesNotHaveAccessToDatabase() {
-        TestHelper.createTestDatabases(TestHelper.TEST_DATABASE_2);
-        final Configuration config2 = TestHelper.defaultConfig(
-                TestHelper.TEST_DATABASE_1, TestHelper.TEST_DATABASE_2)
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .build();
-        Map<String, Object> result = new HashMap<>();
-        start(SqlServerConnector.class, config2, (success, message, error) -> {
-            result.put("success", success);
-            result.put("message", message);
-        });
-        assertEquals(false, result.get("success"));
-        assertEquals(
-                "Connector configuration is not valid. User sa does not have access to CDC schema in the following databases: testDB2. This user can only be used in initial_only snapshot mode",
-                result.get("message"));
-    }
-
-    @Test
     @FixFor("DBZ-5033")
     public void shouldIgnoreNullOffsetsWhenRecoveringHistory() {
         final Configuration config1 = TestHelper.defaultConfig()
@@ -2837,6 +2770,42 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 .valueAfterFieldSchemaIsEqualTo(newExpectedSchema);
 
         stopConnector();
+    }
+
+    @Test
+    public void shouldIgnoreOfflineAndNonExistingDatabases() throws Exception {
+        TestHelper.createTestDatabases(TestHelper.TEST_DATABASE_1, TestHelper.TEST_DATABASE_2);
+        final Map<String, String> props = TestHelper.defaultConnectorConfig()
+                .with(SqlServerConnectorConfig.DATABASE_NAMES.name(), TestHelper.TEST_DATABASE_1 + ","
+                        + TestHelper.TEST_DATABASE_2 + ",non-existing-database")
+                .build()
+                .asMap();
+        final LogInterceptor logInterceptor = new LogInterceptor(SqlServerConnection.class);
+
+        connection.execute("ALTER DATABASE " + TestHelper.TEST_DATABASE_2 + " SET OFFLINE");
+
+        try {
+            SqlServerConnector connector = new SqlServerConnector();
+
+            Config validatedConfig = connector.validate(props);
+            assertNoConfigurationErrors(validatedConfig, SqlServerConnectorConfig.HOSTNAME);
+
+            connector.start(props);
+            List<Map<String, String>> taskConfigs = connector.taskConfigs(1);
+            assertThat(taskConfigs).hasSize(1);
+            assertThat(taskConfigs.get(0).get(SqlServerConnectorConfig.DATABASE_NAMES.name())).isEqualTo(TestHelper.TEST_DATABASE_1);
+
+            final String message1 = "Database non-existing-database does not exist";
+            assertThat(logInterceptor.containsMessage(message1)).isTrue();
+
+            final String message2 = "Database " + TestHelper.TEST_DATABASE_2 + " is not online (state_desc = OFFLINE)";
+            assertThat(logInterceptor.containsMessage(message2)).isTrue();
+        }
+        finally {
+            // Set the database back online, since otherwise, it will be impossible to create it again
+            // https://docs.microsoft.com/en-us/sql/t-sql/statements/drop-database-transact-sql?view=sql-server-ver15#general-remarks
+            connection.execute("ALTER DATABASE " + TestHelper.TEST_DATABASE_2 + " SET ONLINE");
+        }
     }
 
     @Test
