@@ -312,6 +312,7 @@ public abstract class CommonConnectorConfig {
     public static final String DRIVER_CONFIG_PREFIX = "driver.";
     private static final String CONVERTER_TYPE_SUFFIX = ".type";
     public static final long DEFAULT_RETRIABLE_RESTART_WAIT = 10000L;
+    public static final int DEFAULT_RETRIABLE_RESTART_MAX_NUM = 10;
     public static final long DEFAULT_MAX_QUEUE_SIZE_IN_BYTES = 0; // In case we don't want to pass max.queue.size.in.bytes;
 
     public static final Field TOPIC_PREFIX = Field.create("topic.prefix")
@@ -337,6 +338,17 @@ public abstract class CommonConnectorConfig {
             .withDescription(
                     "Time to wait before restarting connector after retriable exception occurs. Defaults to " + DEFAULT_RETRIABLE_RESTART_WAIT + "ms.")
             .withValidation(Field::isPositiveLong);
+
+    public static final Field RETRIABLE_RESTART_MAX_NUM = Field.create("retriable.restart.connector.max.num")
+            .withDisplayName("Retriable restart maximum number")
+            .withType(Type.INT)
+            .withGroup(Field.createGroupEntry(Field.Group.ADVANCED, 22))
+            .withWidth(Width.MEDIUM)
+            .withImportance(Importance.LOW)
+            .withDefault(DEFAULT_RETRIABLE_RESTART_MAX_NUM)
+            .withDescription(
+                    "The maximum number of retriable restarts before an exception occurs. Defaults to " + DEFAULT_RETRIABLE_RESTART_MAX_NUM + ".")
+            .withValidation(Field::isPositiveInteger);
 
     public static final Field TOMBSTONES_ON_DELETE = Field.create("tombstones.on.delete")
             .withDisplayName("Change the behaviour of Debezium with regards to delete operations")
@@ -578,6 +590,7 @@ public abstract class CommonConnectorConfig {
                     SNAPSHOT_FETCH_SIZE,
                     SNAPSHOT_MAX_THREADS,
                     RETRIABLE_RESTART_WAIT,
+                    RETRIABLE_RESTART_MAX_NUM,
                     QUERY_FETCH_SIZE)
             .events(
                     CUSTOM_CONVERTERS,

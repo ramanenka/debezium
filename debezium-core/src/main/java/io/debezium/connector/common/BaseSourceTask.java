@@ -25,6 +25,7 @@ import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.annotation.SingleThreadAccess;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
@@ -83,6 +84,8 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
     private final Map<Map<String, ?>, Map<String, ?>> lastOffsets = new HashMap<>();
 
     private Duration retriableRestartWait;
+    private int retriableRestartMaxNum;
+    private int retriableRestarts = 0;
 
     private final ElapsedTimeStrategy pollOutputDelay;
     private final Clock clock = Clock.system();
@@ -119,6 +122,7 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
             this.props = props;
             Configuration config = Configuration.from(props);
             retriableRestartWait = config.getDuration(CommonConnectorConfig.RETRIABLE_RESTART_WAIT, ChronoUnit.MILLIS);
+            retriableRestartMaxNum = config.getInteger(CommonConnectorConfig.RETRIABLE_RESTART_MAX_NUM);
             // need to reset the delay or you only get one delayed restart
             restartDelay = null;
             if (!config.validateAndRecord(getAllConfigurationFields(), LOGGER::error)) {
@@ -164,11 +168,25 @@ public abstract class BaseSourceTask<P extends Partition, O extends OffsetContex
         try {
             final List<SourceRecord> records = doPoll();
             logStatistics(records);
+            if (retriableRestarts > 0 && coordinator.streamingIterationCompleted()) {
+                retriableRestarts = 0;
+            }
             return records;
         }
         catch (RetriableException e) {
-            stop(true);
-            throw e;
+            retriableRestarts++;
+            boolean doRestart = retriableRestarts <= retriableRestartMaxNum;
+            stop(doRestart);
+
+            if (doRestart) {
+                LOGGER.info("{} of {} retriable restarts will be attempted", retriableRestarts, retriableRestartMaxNum);
+                throw e;
+            }
+            else {
+                String errorMsg = String.format("The maximum number of retriable restarts: %d has been attempted", retriableRestartMaxNum);
+                LOGGER.error(errorMsg);
+                throw new DebeziumException(errorMsg);
+            }
         }
     }
 

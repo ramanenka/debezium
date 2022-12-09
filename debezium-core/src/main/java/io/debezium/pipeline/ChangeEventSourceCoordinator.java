@@ -65,6 +65,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
     protected final DatabaseSchema<?> schema;
 
     private volatile boolean running;
+    protected AtomicReference<Boolean> streamingIterationCompleted;
     protected volatile StreamingChangeEventSource<P, O> streamingSource;
     protected final ReentrantLock commitOffsetLock = new ReentrantLock();
 
@@ -83,6 +84,7 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         this.executor = Threads.newSingleThreadExecutor(connectorType, connectorConfig.getLogicalName(), "change-event-source-coordinator");
         this.eventDispatcher = eventDispatcher;
         this.schema = schema;
+        this.streamingIterationCompleted = new AtomicReference<>();
     }
 
     public synchronized void start(CdcSourceTaskContext taskContext, ChangeEventQueueMetrics changeEventQueueMetrics,
@@ -191,6 +193,10 @@ public class ChangeEventSourceCoordinator<P extends Partition, O extends OffsetC
         if (!commitOffsetLock.isLocked() && streamingSource != null && offset != null) {
             streamingSource.commitOffset(partition, offset);
         }
+    }
+
+    public boolean streamingIterationCompleted() {
+        return streamingIterationCompleted.get() != null;
     }
 
     /**
