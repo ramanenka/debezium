@@ -104,6 +104,8 @@ public class SqlServerChangeEventSourceCoordinator extends ChangeEventSourceCoor
             if (!streamedEvents) {
                 metronome.pause();
             }
+
+            streamingIterationCompleted.compareAndSet(null, true);
         }
 
         LOGGER.info("Finished streaming");
