@@ -100,7 +100,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_NEW_CHANGE_TABLES = "SELECT * FROM [#db].cdc.change_tables WHERE start_lsn BETWEEN ? AND ?";
     private static final String OPENING_QUOTING_CHARACTER = "[";
     private static final String CLOSING_QUOTING_CHARACTER = "]";
-    private static final String DELETE_CHANGE_TABLE = "EXEC [#db].dbo.DebeziumSQLConnector_DeleteCaptureInstance @CaptureInstanceName = ?";
+    private static final String COMPLETE_READING_FROM_CAPTURE_INSTANCE = "EXEC [#db].dbo.DebeziumSQLConnector_CompletedReadingFromCaptureInstance @CaptureInstanceName = ?, @StartLSN = ?, @StopLSN = ?, @ChangeTableName = ?";
 
     private static final String URL_PATTERN = "jdbc:sqlserver://${" + JdbcConfiguration.HOSTNAME + "}";
 
@@ -659,11 +659,14 @@ public class SqlServerConnection extends JdbcConnection {
         return isRunning;
     }
 
-    public void deleteChangeTable(String databaseName, SqlServerChangeTable table) throws SQLException {
-        final String query = replaceDatabaseNamePlaceholder(DELETE_CHANGE_TABLE, databaseName);
+    public void completeReadingFromCaptureInstance(String databaseName, SqlServerChangeTable table) throws SQLException {
+        final String query = replaceDatabaseNamePlaceholder(COMPLETE_READING_FROM_CAPTURE_INSTANCE, databaseName);
         prepareUpdate(query, ps -> {
-            LOGGER.trace("Calling the DeleteCaptureInstance stored procedure with change table: {}", table);
+            LOGGER.trace("Calling CompletedReadingFromCaptureInstance stored procedure with change table: {}", table);
             ps.setString(1, table.getCaptureInstance());
+            ps.setString(2, table.getStartLsn().toString());
+            ps.setString(3, table.getStopLsn().toString());
+            ps.setString(4, table.getChangeTableId().table());
         });
     }
 }
