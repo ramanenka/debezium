@@ -519,7 +519,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
             for (SqlServerChangeTable table : changeTablesToBeDeleted) {
                 try {
-                    dataConnection.deleteChangeTable(partition.getDatabaseName(), table);
+                    dataConnection.completeReadingFromCaptureInstance(partition.getDatabaseName(), table);
                 }
                 catch (SQLException e) {
                     throw new RuntimeException(e);
