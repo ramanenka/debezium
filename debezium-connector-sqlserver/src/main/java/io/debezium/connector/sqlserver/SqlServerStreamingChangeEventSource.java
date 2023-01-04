@@ -214,6 +214,11 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     tablesSlot.set(getChangeTablesToQuery(partition, offsetContext, toLsn));
                     collectChangeTablesWithKnownStopLsn(partition, tablesSlot.get());
                 }
+
+                tablesSlot.set(Arrays.stream(tablesSlot.get())
+                        .filter(t -> !t.getStopLsn().isAvailable() || t.getStopLsn().compareTo(fromLsn) > 0)
+                        .toArray(SqlServerChangeTable[]::new));
+
                 try {
                     dataConnection.getChangesForTables(databaseName, tablesSlot.get(), fromLsn, toLsn, resultSets -> {
 
@@ -519,7 +524,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
             for (SqlServerChangeTable table : changeTablesToBeDeleted) {
                 try {
-                    dataConnection.deleteChangeTable(partition.getDatabaseName(), table);
+                    dataConnection.completeReadingFromCaptureInstance(partition.getDatabaseName(), table);
                 }
                 catch (SQLException e) {
                     throw new RuntimeException(e);
