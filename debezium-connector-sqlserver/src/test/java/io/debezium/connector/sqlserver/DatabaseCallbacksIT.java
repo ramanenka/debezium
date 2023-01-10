@@ -144,7 +144,6 @@ public class DatabaseCallbacksIT extends AbstractConnectorTest {
                 "(@CaptureInstanceName sysname,\n" +
                 "@StartLSN varchar(100),\n" +
                 "@StopLSN varchar(100),\n" +
-                "@ChangeTableName sysname,\n" +
                 "@Debug bit = NULL\n" +
                 ") AS BEGIN\n" +
                 "    DECLARE @source_schema sysname;\n" +

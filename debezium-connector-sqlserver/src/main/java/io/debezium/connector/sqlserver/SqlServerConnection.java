@@ -100,7 +100,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_NEW_CHANGE_TABLES = "SELECT * FROM [#db].cdc.change_tables WHERE start_lsn BETWEEN ? AND ?";
     private static final String OPENING_QUOTING_CHARACTER = "[";
     private static final String CLOSING_QUOTING_CHARACTER = "]";
-    private static final String COMPLETE_READING_FROM_CAPTURE_INSTANCE = "EXEC [#db].dbo.DebeziumSQLConnector_CompletedReadingFromCaptureInstance @CaptureInstanceName = ?, @StartLSN = ?, @StopLSN = ?, @ChangeTableName = ?";
+    private static final String COMPLETE_READING_FROM_CAPTURE_INSTANCE = "EXEC [#db].dbo.DebeziumSQLConnector_CompletedReadingFromCaptureInstance @CaptureInstanceName = ?, @StartLSN = ?, @StopLSN = ?";
 
     private static final String URL_PATTERN = "jdbc:sqlserver://${" + JdbcConfiguration.HOSTNAME + "}";
 
@@ -666,7 +666,6 @@ public class SqlServerConnection extends JdbcConnection {
             ps.setString(1, table.getCaptureInstance());
             ps.setString(2, table.getStartLsn().toString());
             ps.setString(3, table.getStopLsn().toString());
-            ps.setString(4, table.getChangeTableId().table());
         });
     }
 }
