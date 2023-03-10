@@ -100,6 +100,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_NEW_CHANGE_TABLES = "SELECT * FROM [#db].cdc.change_tables WHERE start_lsn BETWEEN ? AND ?";
     private static final String OPENING_QUOTING_CHARACTER = "[";
     private static final String CLOSING_QUOTING_CHARACTER = "]";
+    private static final String COMPLETE_READING_FROM_CAPTURE_INSTANCE = "EXEC [#db].dbo.DebeziumSQLConnector_CompletedReadingFromCaptureInstance @CaptureInstanceName = ?, @StartLSN = ?, @StopLSN = ?";
 
     private static final String URL_PATTERN = "jdbc:sqlserver://${" + JdbcConfiguration.HOSTNAME + "}";
 
@@ -656,5 +657,15 @@ public class SqlServerConnection extends JdbcConnection {
         final boolean isRunning = queryAndMap(query,
                 singleResultMapper(rs -> rs.getBoolean(1), "SQL Server Agent running status query must return exactly one value"));
         return isRunning;
+    }
+
+    public void completeReadingFromCaptureInstance(String databaseName, SqlServerChangeTable table) throws SQLException {
+        final String query = replaceDatabaseNamePlaceholder(COMPLETE_READING_FROM_CAPTURE_INSTANCE, databaseName);
+        prepareUpdate(query, ps -> {
+            LOGGER.trace("Calling CompletedReadingFromCaptureInstance stored procedure with change table: {}", table);
+            ps.setString(1, table.getCaptureInstance());
+            ps.setString(2, table.getStartLsn().toString());
+            ps.setString(3, table.getStopLsn().toString());
+        });
     }
 }
