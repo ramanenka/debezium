@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -347,6 +348,34 @@ public class SqlServerConnection extends JdbcConnection {
             idx++;
         }
         prepareQuery(queries, preparers, consumer);
+    }
+
+    public PreparedStatement getChangesForTable(String databaseName, SqlServerChangeTable changeTable, Lsn intervalFromLsn,
+                                                Lsn intervalToLsn, int offset, int limit)
+            throws SQLException, InterruptedException {
+
+        String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, databaseName)
+                .replace(STATEMENTS_PLACEHOLDER, changeTable.getCaptureInstance());
+        if (offset > -1) {
+            query += " OFFSET " + offset + " ROWS";
+        }
+        if (limit > -1) {
+            query += " FETCH NEXT " + limit + " ROWS ONLY";
+        }
+
+        // If the table was added in the middle of queried buffer we need
+        // to adjust from to the first LSN available
+        final Lsn fromLsn = getFromLsn(databaseName, changeTable, intervalFromLsn);
+        LOGGER.trace("Getting changes for table {} in range[{}, {}][{}, +{}]", changeTable, fromLsn, intervalToLsn, offset, limit);
+
+        PreparedStatement statement = connection().prepareStatement(query);
+        if (queryFetchSize > 0) {
+            statement.setFetchSize(queryFetchSize);
+        }
+        statement.setBytes(1, fromLsn.getBinary());
+        statement.setBytes(2, intervalToLsn.getBinary());
+
+        return statement;
     }
 
     private Lsn getFromLsn(String databaseName, SqlServerChangeTable changeTable, Lsn intervalFromLsn) throws SQLException {

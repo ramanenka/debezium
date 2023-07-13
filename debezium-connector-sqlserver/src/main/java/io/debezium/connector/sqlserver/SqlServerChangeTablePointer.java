@@ -5,12 +5,15 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -46,18 +49,12 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
     private static final int COL_DATA = 5;
 
     private ResultSetMapper<Object[]> resultSetMapper;
-    private final ResultSet resultSet;
     private final int columnDataOffset;
 
-    public SqlServerChangeTablePointer(SqlServerChangeTable changeTable, ResultSet resultSet) {
-        super(changeTable, resultSet, COL_DATA);
+    public SqlServerChangeTablePointer(SqlServerChangeTable changeTable, Iterator<PreparedStatement> statementsIterator) {
+        super(changeTable, statementsIterator, COL_DATA);
         // Store references to these because we can't get them from our superclass
-        this.resultSet = resultSet;
         this.columnDataOffset = COL_DATA;
-    }
-
-    protected ResultSet getResultSet() {
-        return resultSet;
     }
 
     @Override
@@ -94,7 +91,11 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
         if (resultSetMapper == null) {
             this.resultSetMapper = createResultSetMapper(getChangeTable().getSourceTable());
         }
-        return resultSetMapper.apply(resultSet);
+        return resultSetMapper.apply(getResultSet());
+    }
+
+    protected Timestamp getTimestamp() throws SQLException {
+        return getResultSet().getTimestamp(getResultSet().getMetaData().getColumnCount());
     }
 
     /**
@@ -110,7 +111,7 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
      */
     private ResultSetMapper<Object[]> createResultSetMapper(Table table) throws SQLException {
         ColumnUtils.MappedColumns columnMap = ColumnUtils.toMap(table);
-        final ResultSetMetaData rsmd = resultSet.getMetaData();
+        final ResultSetMetaData rsmd = getResultSet().getMetaData();
         final int columnCount = rsmd.getColumnCount() - columnDataOffset;
         final List<String> resultColumns = new ArrayList<>(columnCount);
         for (int i = 0; i < columnCount; ++i) {

@@ -5,8 +5,10 @@
  */
 package io.debezium.pipeline.source.spi;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,16 +29,22 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     private final static Logger LOGGER = LoggerFactory.getLogger(ChangeTableResultSet.class);
 
     private final C changeTable;
-    private final ResultSet resultSet;
+    private final Iterator<PreparedStatement> statementsIterator;
+    private PreparedStatement statement;
+    private ResultSet resultSet;
     private final int columnDataOffset;
     private boolean completed = false;
     private T currentChangePosition;
     private T previousChangePosition;
 
-    public ChangeTableResultSet(C changeTable, ResultSet resultSet, int columnDataOffset) {
+    public ChangeTableResultSet(C changeTable, Iterator<PreparedStatement> statementsIterator, int columnDataOffset) {
         this.changeTable = changeTable;
-        this.resultSet = resultSet;
+        this.statementsIterator = statementsIterator;
         this.columnDataOffset = columnDataOffset;
+    }
+
+    protected ResultSet getResultSet() {
+        return resultSet;
     }
 
     public C getChangeTable() {
@@ -60,7 +68,19 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     }
 
     public boolean next() throws SQLException {
-        completed = !resultSet.next();
+        if (resultSet == null || !resultSet.next()) {
+            if (resultSet != null) {
+                statement.close();
+            }
+
+            statement = statementsIterator.next();
+            resultSet = statement.executeQuery();
+            if (!resultSet.next()) {
+                statement.close();
+                completed = true;
+            }
+        }
+
         previousChangePosition = currentChangePosition;
         currentChangePosition = getNextChangePosition(resultSet);
         if (completed) {
