@@ -8,6 +8,7 @@ package io.debezium.connector.sqlserver;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -349,6 +350,67 @@ public class SqlServerConnection extends JdbcConnection {
             idx++;
         }
         prepareQuery(queries, preparers, consumer);
+    }
+
+    /**
+     * Provides all changes recorder by the SQL Server CDC capture process for a set of tables.
+     *
+     * @param databaseName - the name of the database to query
+     * @param changeTables - the requested tables to obtain changes for
+     * @param intervalFromLsn - closed lower bound of interval of changes to be provided
+     * @param intervalToLsn  - closed upper bound of interval  of changes to be provided
+     * @param consumer - the change processor
+     * @throws SQLException
+     */
+    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn, Lsn intervalToLsn, int maxRows) throws SQLException {
+        final String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, changeTable.getSourceTableId().catalog())
+                .replace(STATEMENTS_PLACEHOLDER, changeTable.getCaptureInstance())
+                .replace("SELECT", String.format("SELECT TOP %d ", maxRows));
+        // If the table was added in the middle of queried buffer we need
+        // to adjust from to the first LSN available
+        final Lsn fromLsn = getFromLsn(changeTable.getSourceTableId().catalog(), changeTable, intervalFromLsn);
+        LOGGER.trace("Getting changes for table {} in range[{}, {}]", changeTable, fromLsn, intervalToLsn);
+
+        PreparedStatement statement = connection().prepareStatement(query);
+        statement.closeOnCompletion();
+        if (queryFetchSize > 0) {
+            statement.setFetchSize(queryFetchSize);
+        }
+        statement.setBytes(1, fromLsn.getBinary());
+        statement.setBytes(2, intervalToLsn.getBinary());
+
+        return statement.executeQuery();
+    }
+
+    public ResultSet getChangesForTableAfter(SqlServerChangeTable changeTable, Lsn intervalFromLsn, Lsn seqvalFromLsn,
+                                             int operationFrom, Lsn intervalToLsn, int maxRows)
+            throws SQLException {
+        final String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, changeTable.getSourceTableId().catalog())
+                .replace(STATEMENTS_PLACEHOLDER, changeTable.getCaptureInstance())
+                .replace("SELECT", String.format("SELECT TOP %d ", maxRows))
+                .replace("order by",
+                        "WHERE ([__$start_lsn]=? AND [__$seqval]=? AND [__$operation]>?) OR ([__$start_lsn]=? AND [__$seqval]>?) OR ([__$start_lsn]>?) order by");
+
+        // If the table was added in the middle of queried buffer we need
+        // to adjust from to the first LSN available
+        final Lsn fromLsn = getFromLsn(changeTable.getSourceTableId().catalog(), changeTable, intervalFromLsn);
+        LOGGER.trace("Getting changes for table {} in range[{}, {}]", changeTable, fromLsn, intervalToLsn);
+
+        PreparedStatement statement = connection().prepareStatement(query);
+        statement.closeOnCompletion();
+        if (queryFetchSize > 0) {
+            statement.setFetchSize(queryFetchSize);
+        }
+        statement.setBytes(1, fromLsn.getBinary());
+        statement.setBytes(2, intervalToLsn.getBinary());
+        statement.setBytes(3, fromLsn.getBinary());
+        statement.setBytes(4, seqvalFromLsn.getBinary());
+        statement.setInt(5, operationFrom);
+        statement.setBytes(6, fromLsn.getBinary());
+        statement.setBytes(7, seqvalFromLsn.getBinary());
+        statement.setBytes(8, fromLsn.getBinary());
+
+        return statement.executeQuery();
     }
 
     private Lsn getFromLsn(String databaseName, SqlServerChangeTable changeTable, Lsn intervalFromLsn) throws SQLException {

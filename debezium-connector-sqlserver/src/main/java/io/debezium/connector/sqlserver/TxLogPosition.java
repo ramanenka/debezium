@@ -18,13 +18,15 @@ import io.debezium.connector.Nullable;
  */
 public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
 
-    public static final TxLogPosition NULL = new TxLogPosition(null, null);
+    public static final TxLogPosition NULL = new TxLogPosition(null, null, -1);
     private final Lsn commitLsn;
     private final Lsn inTxLsn;
+    private final int operation;
 
-    private TxLogPosition(Lsn commitLsn, Lsn inTxLsn) {
+    private TxLogPosition(Lsn commitLsn, Lsn inTxLsn, int operation) {
         this.commitLsn = commitLsn;
         this.inTxLsn = inTxLsn;
+        this.operation = operation;
     }
 
     public Lsn getCommitLsn() {
@@ -33,6 +35,10 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
 
     public Lsn getInTxLsn() {
         return inTxLsn;
+    }
+
+    public int getOperation() {
+        return operation;
     }
 
     @Override
@@ -77,7 +83,7 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
         else if (!inTxLsn.equals(other.inTxLsn)) {
             return false;
         }
-        return true;
+        return operation == other.operation;
     }
 
     @Override
@@ -86,11 +92,16 @@ public class TxLogPosition implements Nullable, Comparable<TxLogPosition> {
         return comparison == 0 ? inTxLsn.compareTo(o.inTxLsn) : comparison;
     }
 
-    public static TxLogPosition valueOf(Lsn commitLsn, Lsn inTxLsn) {
+    public static TxLogPosition valueOf(Lsn commitLsn, Lsn inTxLsn, int operation) {
         return commitLsn == null && inTxLsn == null ? NULL
                 : new TxLogPosition(
                         commitLsn == null ? Lsn.NULL : commitLsn,
-                        inTxLsn == null ? Lsn.NULL : inTxLsn);
+                        inTxLsn == null ? Lsn.NULL : inTxLsn,
+                        operation);
+    }
+
+    public static TxLogPosition valueOf(Lsn commitLsn, Lsn inTxLsn) {
+        return valueOf(commitLsn, inTxLsn, -1);
     }
 
     public static TxLogPosition valueOf(Lsn commitLsn) {

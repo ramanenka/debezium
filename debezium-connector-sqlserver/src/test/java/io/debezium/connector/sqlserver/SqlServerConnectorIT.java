@@ -109,7 +109,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
 
     @Test
     public void createAndDelete() throws Exception {
-        final int RECORDS_PER_TABLE = 5;
+        final int RECORDS_PER_TABLE = 50;
         final int TABLES = 2;
         final int ID_START = 10;
         final Configuration config = TestHelper.defaultConfig()
