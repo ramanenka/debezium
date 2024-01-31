@@ -12,13 +12,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -93,7 +91,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
 
     private final ElapsedTimeStrategy pauseBetweenCommits;
     private final Map<SqlServerPartition, SqlServerStreamingExecutionContext> streamingExecutionContexts;
-    private final Map<SqlServerPartition, Set<SqlServerChangeTable>> changeTablesWithKnownStopLsn = new HashMap<>();
+    private final Map<SqlServerPartition, Map<String, SqlServerChangeTable>> changeTablesWithKnownStopLsn = new HashMap<>();
 
     private boolean checkAgent;
     private SqlServerOffsetContext effectiveOffset;
@@ -365,8 +363,11 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
     private void collectChangeTablesWithKnownStopLsn(SqlServerPartition partition, SqlServerChangeTable[] tables) {
         for (SqlServerChangeTable table : tables) {
             if (table.getStopLsn().isAvailable()) {
-                LOGGER.info("The stop lsn of {} change table became known", table);
-                changeTablesWithKnownStopLsn.computeIfAbsent(partition, x -> new HashSet<>()).add(table);
+                synchronized (changeTablesWithKnownStopLsn) {
+                    LOGGER.info("The stop lsn of {} change table became known", table);
+                    changeTablesWithKnownStopLsn.computeIfAbsent(partition, x -> new HashMap<>())
+                            .put(table.getCaptureInstance(), table);
+                }
             }
         }
     }
@@ -518,9 +519,9 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             }
 
             SqlServerPartition partition = optionalPartition.get();
-            Set<SqlServerChangeTable> partitionTables = changeTablesWithKnownStopLsn.get(partition);
+            Map<String, SqlServerChangeTable> partitionTables = changeTablesWithKnownStopLsn.get(partition);
 
-            List<SqlServerChangeTable> changeTablesToCompleteReadingFrom = partitionTables.stream()
+            List<SqlServerChangeTable> changeTablesToCompleteReadingFrom = partitionTables.values().stream()
                     .filter(t -> t.getStopLsn().compareTo(commitLsn) < 0)
                     .collect(Collectors.toList());
 
@@ -541,7 +542,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                         .withTimestamp(clock.currentTimeInMillis())
                         .build());
 
-                partitionTables.remove(table);
+                partitionTables.remove(table.getCaptureInstance());
 
                 LOGGER.info(
                         "Complete reading from change table {} as the committed change lsn ({}) is greater than the table's stop lsn ({})",
