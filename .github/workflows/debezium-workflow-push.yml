@@ -32,6 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: debezium/debezium-server
+          ref: bc0393bd6b6814e07f543292988620bcb3f9ca54
           path: server
 
       - uses: ./core/.github/actions/setup-java
