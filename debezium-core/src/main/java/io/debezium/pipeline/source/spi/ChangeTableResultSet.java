@@ -64,10 +64,19 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
         previousChangePosition = currentChangePosition;
         currentChangePosition = getNextChangePosition(resultSet);
         if (completed) {
-            LOGGER.trace("Closing result set of change tables for table {}", changeTable);
-            resultSet.close();
+            close();
         }
         return !completed;
+    }
+
+    public void close() {
+        LOGGER.trace("Closing result set of change tables for table {}", changeTable);
+        try {
+            resultSet.close();
+        }
+        catch (Exception e) {
+            // ignore
+        }
     }
 
     /**
