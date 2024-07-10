@@ -350,9 +350,10 @@ public class SqlServerConnection extends JdbcConnection {
      * @param intervalToLsn  - closed upper bound of interval  of changes to be provided
      * @throws SQLException
      */
-    public ResultSet getChangesForTable(String databaseName, SqlServerChangeTable changeTable, Lsn intervalFromLsn,
+    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn,
                                         Lsn intervalToLsn)
-            throws SQLException, InterruptedException {
+            throws SQLException {
+        String databaseName = changeTable.getSourceTableId().catalog();
         String capturedColumns = changeTable.getCapturedColumns().stream().map(c -> "[" + c + "]")
                 .collect(Collectors.joining(", "));
         String source = changeTable.getCaptureInstance();

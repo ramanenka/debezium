@@ -583,7 +583,7 @@ public class TestHelper {
                                     final Lsn minLsn = connection.getMinLsn(TEST_DATABASE_1, ctTableName);
                                     final Lsn maxLsn = connection.getMaxLsn(TEST_DATABASE_1);
                                     final CdcRecordFoundBlockingResultSetConsumer consumer = new CdcRecordFoundBlockingResultSetConsumer(handler);
-                                    try (ResultSet resultSet = connection.getChangesForTable(TEST_DATABASE_1, ct, minLsn, maxLsn)) {
+                                    try (ResultSet resultSet = connection.getChangesForTable(ct, minLsn, maxLsn)) {
                                         consumer.accept(resultSet);
                                     }
                                     return consumer.isFound();
@@ -639,7 +639,7 @@ public class TestHelper {
                                     final Lsn minLsn = connection.getMinLsn(TEST_DATABASE_1, ctTableName);
                                     final Lsn maxLsn = connection.getMaxLsn(TEST_DATABASE_1);
                                     final CdcRecordFoundBlockingResultSetConsumer consumer = new CdcRecordFoundBlockingResultSetConsumer(handler);
-                                    try (ResultSet resultSet = connection.getChangesForTable(TEST_DATABASE_1, ct, minLsn, maxLsn)) {
+                                    try (ResultSet resultSet = connection.getChangesForTable(ct, minLsn, maxLsn)) {
                                         consumer.accept(resultSet);
                                     }
                                     return consumer.isFound();
