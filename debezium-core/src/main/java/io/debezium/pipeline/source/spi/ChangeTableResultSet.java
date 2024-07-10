@@ -27,15 +27,14 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     private final static Logger LOGGER = LoggerFactory.getLogger(ChangeTableResultSet.class);
 
     private final C changeTable;
-    private final ResultSet resultSet;
+    private ResultSet resultSet;
     private final int columnDataOffset;
     private boolean completed = false;
     private T currentChangePosition;
     private T previousChangePosition;
 
-    public ChangeTableResultSet(C changeTable, ResultSet resultSet, int columnDataOffset) {
+    public ChangeTableResultSet(C changeTable, int columnDataOffset) {
         this.changeTable = changeTable;
-        this.resultSet = resultSet;
         this.columnDataOffset = columnDataOffset;
     }
 
@@ -59,7 +58,16 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
         return (previousChangePosition != null) && previousChangePosition.compareTo(currentChangePosition) > 0;
     }
 
+    public ResultSet getResultSet() {
+        return resultSet;
+    }
+
+    protected abstract ResultSet getNextResultSet() throws SQLException;
+
     public boolean next() throws SQLException {
+        if (resultSet == null) {
+            resultSet = getNextResultSet();
+        }
         completed = !resultSet.next();
         previousChangePosition = currentChangePosition;
         currentChangePosition = getNextChangePosition(resultSet);

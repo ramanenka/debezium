@@ -882,7 +882,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                         final Lsn minLsn = connection.getMinLsn(TestHelper.TEST_DATABASE_1, tableName);
                         final Lsn maxLsn = connection.getMaxLsn(TestHelper.TEST_DATABASE_1);
                         final List<Integer> ids = new ArrayList<>();
-                        try (ResultSet rs = connection.getChangesForTable(TestHelper.TEST_DATABASE_1, ct, minLsn, maxLsn)) {
+                        try (ResultSet rs = connection.getChangesForTable(ct, minLsn, maxLsn)) {
                             while (rs.next()) {
                                 ids.add(rs.getInt("id"));
                             }

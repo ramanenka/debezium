@@ -239,8 +239,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     changeTables = new SqlServerChangeTablePointer[tables.length];
 
                     for (int i = 0; i < tables.length; i++) {
-                        ResultSet resultSet = dataConnection.getChangesForTable(databaseName, tables[i], fromLsn, toLsn);
-                        changeTables[i] = new SqlServerChangeTablePointer(tables[i], resultSet);
+                        changeTables[i] = new SqlServerChangeTablePointer(tables[i], dataConnection, fromLsn, toLsn);
                         changeTables[i].next();
                     }
 
