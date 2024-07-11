@@ -238,8 +238,10 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                     final SqlServerChangeTable[] tables = tablesSlot.get();
                     changeTables = new SqlServerChangeTablePointer[tables.length];
 
+                    final int maxRowsPerResultSet = 3;
+
                     for (int i = 0; i < tables.length; i++) {
-                        changeTables[i] = new SqlServerChangeTablePointer(tables[i], dataConnection, fromLsn, toLsn);
+                        changeTables[i] = new SqlServerChangeTablePointer(tables[i], dataConnection, fromLsn, toLsn, maxRowsPerResultSet);
                         changeTables[i].next();
                     }
 

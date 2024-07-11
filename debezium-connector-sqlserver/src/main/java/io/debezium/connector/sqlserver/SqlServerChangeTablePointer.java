@@ -50,14 +50,16 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
     private final SqlServerConnection connection;
     private final Lsn fromLsn;
     private final Lsn toLsn;
+    private final int maxRowsPerResultSet;
 
-    public SqlServerChangeTablePointer(SqlServerChangeTable changeTable, SqlServerConnection connection, Lsn fromLsn, Lsn toLsn) {
-        super(changeTable, COL_DATA);
+    public SqlServerChangeTablePointer(SqlServerChangeTable changeTable, SqlServerConnection connection, Lsn fromLsn, Lsn toLsn, int maxRowsPerResultSet) {
+        super(changeTable, COL_DATA, maxRowsPerResultSet);
         // Store references to these because we can't get them from our superclass
         this.columnDataOffset = COL_DATA;
         this.connection = connection;
         this.fromLsn = fromLsn;
         this.toLsn = toLsn;
+        this.maxRowsPerResultSet = maxRowsPerResultSet;
     }
 
     @Override
@@ -76,7 +78,10 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
     @Override
     protected TxLogPosition getNextChangePosition(ResultSet resultSet) throws SQLException {
         return isCompleted() ? TxLogPosition.NULL
-                : TxLogPosition.valueOf(Lsn.valueOf(resultSet.getBytes(COL_COMMIT_LSN)), Lsn.valueOf(resultSet.getBytes(COL_ROW_LSN)));
+                : TxLogPosition.valueOf(
+                        Lsn.valueOf(resultSet.getBytes(COL_COMMIT_LSN)),
+                        Lsn.valueOf(resultSet.getBytes(COL_ROW_LSN)),
+                        resultSet.getInt(COL_OPERATION));
     }
 
     /**
@@ -90,8 +95,14 @@ public class SqlServerChangeTablePointer extends ChangeTableResultSet<SqlServerC
     }
 
     @Override
-    protected ResultSet getNextResultSet() throws SQLException {
-        return connection.getChangesForTable(getChangeTable(), fromLsn, toLsn);
+    protected ResultSet getNextResultSet(TxLogPosition lastPositionSeen) throws SQLException {
+        if (lastPositionSeen == null || lastPositionSeen.equals(TxLogPosition.NULL)) {
+            return connection.getChangesForTable(getChangeTable(), fromLsn, toLsn, maxRowsPerResultSet);
+        }
+        else {
+            return connection.getChangesForTable(getChangeTable(), lastPositionSeen.getCommitLsn(), lastPositionSeen.getInTxLsn(), lastPositionSeen.getOperation(),
+                    toLsn, maxRowsPerResultSet);
+        }
     }
 
     @Override

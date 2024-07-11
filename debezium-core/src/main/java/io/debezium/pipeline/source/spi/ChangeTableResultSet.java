@@ -29,13 +29,16 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     private final C changeTable;
     private ResultSet resultSet;
     private final int columnDataOffset;
+    private final int maxRowsPerResultSet;
+    private int rowsReadPerResultSet;
     private boolean completed = false;
     private T currentChangePosition;
     private T previousChangePosition;
 
-    public ChangeTableResultSet(C changeTable, int columnDataOffset) {
+    public ChangeTableResultSet(C changeTable, int columnDataOffset, int maxRowsPerResultSet) {
         this.changeTable = changeTable;
         this.columnDataOffset = columnDataOffset;
+        this.maxRowsPerResultSet = maxRowsPerResultSet;
     }
 
     public C getChangeTable() {
@@ -62,13 +65,30 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
         return resultSet;
     }
 
-    protected abstract ResultSet getNextResultSet() throws SQLException;
+    protected abstract ResultSet getNextResultSet(T lastChangePositionSeen) throws SQLException;
 
     public boolean next() throws SQLException {
         if (resultSet == null) {
-            resultSet = getNextResultSet();
+            resultSet = getNextResultSet(currentChangePosition);
+            rowsReadPerResultSet = 0;
         }
-        completed = !resultSet.next();
+
+        if (resultSet.next()) {
+            rowsReadPerResultSet++;
+        }
+        else {
+            if (maxRowsPerResultSet > 0 && rowsReadPerResultSet > maxRowsPerResultSet) {
+                throw new RuntimeException("Number of rows read from the result set is greater than the configured max rows per a result set");
+            }
+
+            if (maxRowsPerResultSet > 0 && rowsReadPerResultSet == maxRowsPerResultSet) {
+                close();
+                return next();
+            }
+
+            completed = true;
+        }
+
         previousChangePosition = currentChangePosition;
         currentChangePosition = getNextChangePosition(resultSet);
         if (completed) {
@@ -80,7 +100,10 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     public void close() {
         LOGGER.trace("Closing result set of change tables for table {}", changeTable);
         try {
-            resultSet.close();
+            if (resultSet != null) {
+                resultSet.close();
+                resultSet = null;
+            }
         }
         catch (Exception e) {
             // ignore
