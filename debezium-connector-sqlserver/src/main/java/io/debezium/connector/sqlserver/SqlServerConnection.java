@@ -180,10 +180,12 @@ public class SqlServerConnection extends JdbcConnection {
                 break;
             case DIRECT:
                 result += GET_ALL_CHANGES_FOR_TABLE_FROM_DIRECT + " ";
-                where.add("[__$start_lsn] >= ?");
-                where.add("[__$start_lsn] <= ?");
                 break;
         }
+        where.add("(([__$start_lsn] = ? AND [__$seqval] = ? AND [__$operation] > ?) " +
+                "OR ([__$start_lsn] = ? AND [__$seqval] > ?) " +
+                "OR ([__$start_lsn] > ?))");
+        where.add("[__$start_lsn] <= ?");
 
         if (hasSkippedOperations(skippedOperations)) {
             Set<String> skippedOps = new HashSet<>();
@@ -344,29 +346,39 @@ public class SqlServerConnection extends JdbcConnection {
     /**
      * Provides all changes recorder by the SQL Server CDC capture process for a set of tables.
      *
-     * @param databaseName - the name of the database to query
      * @param changeTable - the requested table to obtain changes for
      * @param intervalFromLsn - closed lower bound of interval of changes to be provided
+     * @param seqvalFromLsn - in-transaction sequence value to start after, pass {@link Lsn#ZERO} to fetch all sequence values
+     * @param operationFrom - operation number to start after, pass 0 to fetch all operations
      * @param intervalToLsn  - closed upper bound of interval  of changes to be provided
+     * @param maxRows - the max number of rows to return, pass 0 for no limit
      * @throws SQLException
      */
-    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn,
-                                        Lsn intervalToLsn)
+    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn, Lsn seqvalFromLsn, int operationFrom,
+                                        Lsn intervalToLsn, int maxRows)
             throws SQLException {
         String databaseName = changeTable.getSourceTableId().catalog();
         String capturedColumns = changeTable.getCapturedColumns().stream().map(c -> "[" + c + "]")
                 .collect(Collectors.joining(", "));
+
         String source = changeTable.getCaptureInstance();
         if (config.getDataQueryMode() == SqlServerConnectorConfig.DataQueryMode.DIRECT) {
             source = changeTable.getChangeTableId().table();
         }
-        final String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, databaseName)
+
+        String query = replaceDatabaseNamePlaceholder(getAllChangesForTable, databaseName)
                 .replaceFirst(STATEMENTS_PLACEHOLDER, Matcher.quoteReplacement(capturedColumns))
                 .replace(TABLE_NAME_PLACEHOLDER, source);
+
+        if (maxRows > 0) {
+            query = query.replace("SELECT ", String.format("SELECT TOP %d ", maxRows));
+        }
+
         // If the table was added in the middle of queried buffer we need
         // to adjust from to the first LSN available
-        final Lsn fromLsn = getFromLsn(databaseName, changeTable, intervalFromLsn);
-        LOGGER.trace("Getting changes for table {} in range[{}, {}]", changeTable, fromLsn, intervalToLsn);
+        final Lsn fromLsn = getFromLsn(changeTable, intervalFromLsn);
+        LOGGER.trace("Getting {} changes for table {} in range [{}-{}-{}, {}]", maxRows > 0 ? "top " + maxRows : "", changeTable, fromLsn, seqvalFromLsn, operationFrom,
+                intervalToLsn);
 
         PreparedStatement statement = connection().prepareStatement(query);
         statement.closeOnCompletion();
@@ -374,15 +386,34 @@ public class SqlServerConnection extends JdbcConnection {
         if (queryFetchSize > 0) {
             statement.setFetchSize(queryFetchSize);
         }
-        statement.setBytes(1, fromLsn.getBinary());
-        statement.setBytes(2, intervalToLsn.getBinary());
+
+        int paramIndex = 1;
+        if (config.getDataQueryMode() == SqlServerConnectorConfig.DataQueryMode.FUNCTION) {
+            statement.setBytes(paramIndex++, fromLsn.getBinary());
+            statement.setBytes(paramIndex++, intervalToLsn.getBinary());
+        }
+        statement.setBytes(paramIndex++, fromLsn.getBinary());
+        statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
+        statement.setInt(paramIndex++, operationFrom);
+        statement.setBytes(paramIndex++, fromLsn.getBinary());
+        statement.setBytes(paramIndex++, seqvalFromLsn.getBinary());
+        statement.setBytes(paramIndex++, fromLsn.getBinary());
+        statement.setBytes(paramIndex++, intervalToLsn.getBinary());
 
         return statement.executeQuery();
     }
 
-    private Lsn getFromLsn(String databaseName, SqlServerChangeTable changeTable, Lsn intervalFromLsn) throws SQLException {
+    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn, Lsn intervalToLsn, int maxRows) throws SQLException {
+        return getChangesForTable(changeTable, intervalFromLsn, Lsn.ZERO, 0, intervalToLsn, maxRows);
+    }
+
+    public ResultSet getChangesForTable(SqlServerChangeTable changeTable, Lsn intervalFromLsn, Lsn intervalToLsn) throws SQLException {
+        return getChangesForTable(changeTable, intervalFromLsn, intervalToLsn, 0);
+    }
+
+    private Lsn getFromLsn(SqlServerChangeTable changeTable, Lsn intervalFromLsn) throws SQLException {
         Lsn fromLsn = changeTable.getStartLsn().compareTo(intervalFromLsn) > 0 ? changeTable.getStartLsn() : intervalFromLsn;
-        return fromLsn.getBinary() != null ? fromLsn : getMinLsn(databaseName, changeTable.getCaptureInstance());
+        return fromLsn.getBinary() != null ? fromLsn : getMinLsn(changeTable.getSourceTableId().catalog(), changeTable.getCaptureInstance());
     }
 
     /**
