@@ -40,6 +40,7 @@ alter table add_test modify column if exists col5 varchar(255);
 alter table add_test drop column if exists col99;
 alter table add_test drop column if exists col5;
 alter table add_test add column optional bool default 0 null;
+alter table add_test add column yes varchar(255)  default '' null;
 alter table add_test add column empty varchar(255);
 alter table add_test add column geometry int;
 alter table add_test drop foreign key fk;
