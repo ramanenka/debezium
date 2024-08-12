@@ -34,6 +34,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import javax.management.InstanceNotFoundException;
@@ -124,12 +125,39 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
-    public void createAndDelete() throws Exception {
+    public void createAndDeleteWithDataQueryModeFunctionWithoutFetchThreshold() throws Exception {
+        createAndDelete(builder -> builder
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, SqlServerConnectorConfig.DataQueryMode.FUNCTION)
+                .with(SqlServerConnectorConfig.STREAMING_FETCH_SIZE, 0));
+    }
+
+    @Test
+    public void createAndDeleteWithDataQueryModeFunctionWithFetchThreshold() throws Exception {
+        createAndDelete(builder -> builder
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, SqlServerConnectorConfig.DataQueryMode.FUNCTION)
+                .with(SqlServerConnectorConfig.STREAMING_FETCH_SIZE, 3));
+    }
+
+    @Test
+    public void createAndDeleteWithDataQueryModeDirectWithoutFetchThreshold() throws Exception {
+        createAndDelete(builder -> builder
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, SqlServerConnectorConfig.DataQueryMode.DIRECT)
+                .with(SqlServerConnectorConfig.STREAMING_FETCH_SIZE, 0));
+    }
+
+    @Test
+    public void createAndDeleteWithDataQueryModeDirectWithFetchThreshold() throws Exception {
+        createAndDelete(builder -> builder
+                .with(SqlServerConnectorConfig.DATA_QUERY_MODE, SqlServerConnectorConfig.DataQueryMode.DIRECT)
+                .with(SqlServerConnectorConfig.STREAMING_FETCH_SIZE, 3));
+    }
+
+    private void createAndDelete(UnaryOperator<Configuration.Builder> configAugmenter) throws Exception {
         final int RECORDS_PER_TABLE = 5;
         final int TABLES = 2;
         final int ID_START = 10;
-        final Configuration config = TestHelper.defaultConfig()
-                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+        final Configuration config = configAugmenter.apply(TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL))
                 .build();
 
         start(SqlServerConnector.class, config);
@@ -207,6 +235,7 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
         final Configuration config = TestHelper.defaultConfig()
                 .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
                 .with(SqlServerConnectorConfig.DATA_QUERY_MODE, SqlServerConnectorConfig.DataQueryMode.DIRECT)
+                .with(SqlServerConnectorConfig.STREAMING_FETCH_SIZE, 3)
                 .build();
 
         start(SqlServerConnector.class, config);
